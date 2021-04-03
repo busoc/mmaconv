@@ -14,44 +14,53 @@ import (
 )
 
 const (
-	csvExt          = ".csv"
-	gzExt           = ".gz"
 	timeFormat      = "2006.002.15.04.05.000000"
 	splitFieldCount = 8
 	flatFieldCount  = (3 * mmaconv.MeasCount) + 5
 	allFieldDiff    = 9
 )
 
+type File struct {
+	io.WriteCloser
+}
+
+func (f *File) Set(file string) error {
+	if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
+		return err
+	}
+	w, err := os.Create(file)
+	if err == nil {
+		f.WriteCloser = w
+	}
+	return err
+}
+
+func (f *File) String() string {
+	return "output file"
+}
+
+func (f *File) IsSet() bool {
+	return f.WriteCloser != nil
+}
+
 func main() {
 	var (
 		tbl     = mmaconv.DefaultTable
+		out     File
 		flat    = flag.Bool("f", false, "keep values of same record")
 		all     = flag.Bool("a", false, "write all fields")
 		mini    = flag.Bool("z", false, "compress output file")
-		file    = flag.String("w", "", "output file")
 		recurse = flag.Bool("r", false, "recurse")
 	)
 	flag.Var(&tbl, "c", "use parameters table")
+	flag.Var(&out, "w", "output file")
 	flag.Parse()
 
-	var (
-		w   io.Writer = os.Stdout
-		err error
-	)
-	if *file != "" {
-		*file, err = makeFile(*file, *mini)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
-		}
-		f, err := os.Create(*file)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
-		}
-		defer f.Close()
+	var w io.Writer = os.Stdout
+	if out.IsSet() {
+		defer out.Close()
+		w = out
 
-		w = f
 		if *mini {
 			z, _ := gzip.NewWriterLevel(w, gzip.BestCompression)
 			defer z.Close()
@@ -162,17 +171,4 @@ func appendFields(str []string, m mmaconv.Measurement) []string {
 
 func formatFloat(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
-}
-
-func makeFile(file string, minify bool) (string, error) {
-	if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
-		return "", err
-	}
-	if filepath.Ext(file) != csvExt {
-		file += csvExt
-	}
-	if minify && filepath.Ext(file) != gzExt {
-		file += gzExt
-	}
-	return file, nil
 }
