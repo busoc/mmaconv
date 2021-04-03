@@ -14,8 +14,12 @@ import (
 )
 
 const (
-  csvExt = ".csv"
-  gzExt = ".gz"
+	csvExt          = ".csv"
+	gzExt           = ".gz"
+	timeFormat      = "2006.002.15.04.05.000000"
+	splitFieldCount = 8
+	flatFieldCount  = (3 * mmaconv.MeasCount) + 5
+	allFieldDiff    = 9
 )
 
 func main() {
@@ -31,15 +35,15 @@ func main() {
 	flag.Parse()
 
 	var (
-    w io.Writer = os.Stdout
-    err error
-  )
+		w   io.Writer = os.Stdout
+		err error
+	)
 	if *file != "" {
-    *file, err = makeFile(*file, *mini)
-    if err != nil {
-      fmt.Fprintln(os.Stderr, err)
-      os.Exit(2)
-    }
+		*file, err = makeFile(*file, *mini)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
 		f, err := os.Create(*file)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -54,42 +58,43 @@ func main() {
 			w = z
 		}
 	}
+	if err := process(w, tbl, flag.Arg(0), *flat, *all, *recurse); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+}
+
+func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse bool) error {
 	writeRecord := writeSplit
-	if *flat {
+	if flat {
 		writeRecord = writeFlat
 	}
 
 	ws := csv.NewWriter(w)
-	defer ws.Flush()
-	filepath.Walk(flag.Arg(0), func(file string, i os.FileInfo, err error) error {
+	filepath.Walk(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if i.IsDir() {
-			if !*recurse {
+			if !recurse {
 				err = filepath.SkipDir
 			}
 			return err
 		}
 		ms, err := tbl.Calibrate(file)
 		if err == nil {
-			err = writeRecord(ws, ms, *all)
+			err = writeRecord(ws, ms, all)
 		}
 		return err
 	})
+	ws.Flush()
+	return ws.Error()
 }
-
-const (
-	timeFormat      = "2006.002.15.04.05.000000"
-	splitFieldCount = 8
-	flatFieldCount  = (3 * mmaconv.MeasCount) + 5
-	allField        = 9
-)
 
 func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 	size := flatFieldCount
 	if all {
-		size += allField
+		size += allFieldDiff
 	}
 	str := make([]string, 0, size)
 	for _, m := range data {
@@ -99,26 +104,12 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 		str = append(str, formatFloat(m.DegY))
 		str = append(str, formatFloat(m.DegZ))
 		if all {
-			str = append(str, formatFloat(m.MicX))
-			str = append(str, formatFloat(m.MicY))
-			str = append(str, formatFloat(m.MicZ))
+      str = appendFields(str, m)
 		}
 		for i := 0; i < mmaconv.MeasCount; i++ {
-			if all {
-				str = append(str, formatFloat(m.ScaleX))
-				str = append(str, formatFloat(m.OffsetX))
-			}
-			str = append(str, formatFloat(m.AccX))
-			if all {
-				str = append(str, formatFloat(m.ScaleY))
-				str = append(str, formatFloat(m.OffsetY))
-			}
-			str = append(str, formatFloat(m.AccY))
-			if all {
-				str = append(str, formatFloat(m.ScaleZ))
-				str = append(str, formatFloat(m.OffsetZ))
-			}
-			str = append(str, formatFloat(m.AccZ))
+			str = append(str, formatFloat(m.AccX[i]))
+			str = append(str, formatFloat(m.AccY[i]))
+			str = append(str, formatFloat(m.AccZ[i]))
 		}
 		if err := ws.Write(str); err != nil {
 			return err
@@ -131,7 +122,7 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 	size := splitFieldCount
 	if all {
-		size += allField
+		size += allFieldDiff
 	}
 	str := make([]string, 0, size)
 	for _, m := range data {
@@ -142,19 +133,11 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 			str = append(str, formatFloat(m.DegY))
 			str = append(str, formatFloat(m.DegZ))
 			if all {
-				str = append(str, formatFloat(m.MicX))
-				str = append(str, formatFloat(m.MicY))
-				str = append(str, formatFloat(m.MicZ))
-				str = append(str, formatFloat(m.ScaleX))
-				str = append(str, formatFloat(m.OffsetX))
-				str = append(str, formatFloat(m.ScaleY))
-				str = append(str, formatFloat(m.OffsetY))
-				str = append(str, formatFloat(m.ScaleZ))
-				str = append(str, formatFloat(m.OffsetZ))
+        str = appendFields(str, m)
 			}
-			str = append(str, formatFloat(m.AccX))
-			str = append(str, formatFloat(m.AccY))
-			str = append(str, formatFloat(m.AccZ))
+			str = append(str, formatFloat(m.AccX[i]))
+			str = append(str, formatFloat(m.AccY[i]))
+			str = append(str, formatFloat(m.AccZ[i]))
 			if err := ws.Write(str); err != nil {
 				return err
 			}
@@ -164,19 +147,32 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 	return nil
 }
 
+func appendFields(str []string, m mmaconv.Measurement) []string {
+  str = append(str, formatFloat(m.MicX))
+  str = append(str, formatFloat(m.MicY))
+  str = append(str, formatFloat(m.MicZ))
+  str = append(str, formatFloat(m.ScaleX))
+  str = append(str, formatFloat(m.OffsetX))
+  str = append(str, formatFloat(m.ScaleY))
+  str = append(str, formatFloat(m.OffsetY))
+  str = append(str, formatFloat(m.ScaleZ))
+  str = append(str, formatFloat(m.OffsetZ))
+  return str
+}
+
 func formatFloat(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
 func makeFile(file string, minify bool) (string, error) {
-  if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
-    return "", err
-  }
-  if filepath.Ext(file) != csvExt {
-    file += csvExt
-  }
-  if minify && filepath.Ext(file) != gzExt {
-    file += gzExt
-  }
-  return file, nil
+	if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
+		return "", err
+	}
+	if filepath.Ext(file) != csvExt {
+		file += csvExt
+	}
+	if minify && filepath.Ext(file) != gzExt {
+		file += gzExt
+	}
+	return file, nil
 }
