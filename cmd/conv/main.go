@@ -13,6 +13,11 @@ import (
 	"github.com/busoc/mmaconv"
 )
 
+const (
+  csvExt = ".csv"
+  gzExt = ".gz"
+)
+
 func main() {
 	var (
 		tbl     = mmaconv.DefaultTable
@@ -25,15 +30,16 @@ func main() {
 	flag.Var(&tbl, "c", "use parameters table")
 	flag.Parse()
 
-	var w io.Writer = os.Stdout
+	var (
+    w io.Writer = os.Stdout
+    err error
+  )
 	if *file != "" {
-		if err := os.MkdirAll(filepath.Dir(*file), 0755); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
-		}
-		if *mini && filepath.Ext(*file) != ".gz" {
-			*file += ".gz"
-		}
+    *file, err = makeFile(*file, *mini)
+    if err != nil {
+      fmt.Fprintln(os.Stderr, err)
+      os.Exit(2)
+    }
 		f, err := os.Create(*file)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -45,7 +51,6 @@ func main() {
 		if *mini {
 			z, _ := gzip.NewWriterLevel(w, gzip.BestCompression)
 			defer z.Close()
-
 			w = z
 		}
 	}
@@ -161,4 +166,17 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 
 func formatFloat(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
+}
+
+func makeFile(file string, minify bool) (string, error) {
+  if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
+    return "", err
+  }
+  if filepath.Ext(file) != csvExt {
+    file += csvExt
+  }
+  if minify && filepath.Ext(file) != gzExt {
+    file += gzExt
+  }
+  return file, nil
 }
