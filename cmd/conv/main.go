@@ -104,7 +104,7 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 		str = append(str, formatFloat(m.DegY))
 		str = append(str, formatFloat(m.DegZ))
 		if all {
-      str = appendFields(str, m)
+			str = appendFields(str, m)
 		}
 		for i := 0; i < mmaconv.MeasCount; i++ {
 			str = append(str, formatFloat(m.AccX[i]))
@@ -133,7 +133,7 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 			str = append(str, formatFloat(m.DegY))
 			str = append(str, formatFloat(m.DegZ))
 			if all {
-        str = appendFields(str, m)
+				str = appendFields(str, m)
 			}
 			str = append(str, formatFloat(m.AccX[i]))
 			str = append(str, formatFloat(m.AccY[i]))
@@ -148,16 +148,16 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 }
 
 func appendFields(str []string, m mmaconv.Measurement) []string {
-  str = append(str, formatFloat(m.MicX))
-  str = append(str, formatFloat(m.MicY))
-  str = append(str, formatFloat(m.MicZ))
-  str = append(str, formatFloat(m.ScaleX))
-  str = append(str, formatFloat(m.OffsetX))
-  str = append(str, formatFloat(m.ScaleY))
-  str = append(str, formatFloat(m.OffsetY))
-  str = append(str, formatFloat(m.ScaleZ))
-  str = append(str, formatFloat(m.OffsetZ))
-  return str
+	str = append(str, formatFloat(m.MicX))
+	str = append(str, formatFloat(m.MicY))
+	str = append(str, formatFloat(m.MicZ))
+	str = append(str, formatFloat(m.ScaleX))
+	str = append(str, formatFloat(m.OffsetX))
+	str = append(str, formatFloat(m.ScaleY))
+	str = append(str, formatFloat(m.OffsetY))
+	str = append(str, formatFloat(m.ScaleZ))
+	str = append(str, formatFloat(m.OffsetZ))
+	return str
 }
 
 func formatFloat(v float64) string {
