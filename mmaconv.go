@@ -260,6 +260,10 @@ func (t *Table) calibrate(raw []int16) Measurement {
 	return m
 }
 
+func Calibrate(file string) ([]Measurement, error) {
+	return DefaultTable.Calibrate(file)
+}
+
 func Convert(file string) ([][]int16, time.Time, error) {
 	buf, when, err := Open(file)
 	if err != nil {
