@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/adler32"
-	"io"
+	"io/ioutil"
 	"math"
 	"os"
 	"sort"
@@ -312,7 +312,7 @@ func Open(file string) ([]byte, time.Time, error) {
 	if !bytes.Equal(hdr.FCC[:], Magic) {
 		return nil, time.Time{}, fmt.Errorf("%s: invalid FCC", string(hdr.FCC[:]))
 	}
-	buf, err := io.ReadAll(r)
+	buf, err := ioutil.ReadAll(r)
 	return buf, Epoch.Add(time.Duration(hdr.Time)), err
 }
 
