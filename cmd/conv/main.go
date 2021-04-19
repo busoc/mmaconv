@@ -128,10 +128,26 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 	return nil
 }
 
+var splitHeaders = []string{
+	"time",
+	"sequence",
+	"Tx [degC]",
+	"Ty [degC]",
+	"Tz [degC]",
+	"Ax [microG]",
+	"Ay [microG]",
+	"Az [microG]",
+}
+
 func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 	size := splitFieldCount
 	if all {
 		size += allFieldDiff
+	}
+	if !all {
+		if err := ws.Write(splitHeaders); err != nil {
+			return err
+		}
 	}
 	str := make([]string, 0, size)
 	for _, m := range data {

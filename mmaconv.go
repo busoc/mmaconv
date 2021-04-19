@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/adler32"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
