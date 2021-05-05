@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"sort"
 	"time"
@@ -341,7 +342,7 @@ func pick(values []int16, n int) []float64 {
 }
 
 func splitFile(file string) string {
-	parts := strings.Split(file, "_")
+	parts := strings.Split(filepath.Base(file), "_")
 	z := len(parts)
 	if z == 0 {
 		return ""
