@@ -15,8 +15,8 @@ import (
 
 const (
 	timeFormat      = "2006.002.15.04.05.000000"
-	splitFieldCount = 8
-	flatFieldCount  = (3 * mmaconv.MeasCount) + 5
+	splitFieldCount = 8 + 1
+	flatFieldCount  = (3 * mmaconv.MeasCount) + 5 + 1
 	allFieldDiff    = 9
 )
 
@@ -108,6 +108,7 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 	str := make([]string, 0, size)
 	for _, m := range data {
 		str = append(str, m.When.Format(timeFormat))
+		str = append(str, m.UPI)
 		str = append(str, strconv.Itoa(m.Seq))
 		str = append(str, formatFloat(m.DegX))
 		str = append(str, formatFloat(m.DegY))
@@ -130,6 +131,7 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 
 var splitHeaders = []string{
 	"time",
+	"upi",
 	"sequence",
 	"Tx [degC]",
 	"Ty [degC]",
@@ -153,6 +155,7 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
 	for _, m := range data {
 		for i := 0; i < mmaconv.MeasCount; i++ {
 			str = append(str, m.When.Format(timeFormat))
+			str = append(str, m.UPI)
 			str = append(str, strconv.Itoa(m.Seq))
 			str = append(str, formatFloat(m.DegX))
 			str = append(str, formatFloat(m.DegY))

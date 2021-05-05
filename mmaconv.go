@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
+	"strings"
 	"sort"
 	"time"
 
@@ -103,6 +104,7 @@ var DefaultTable = Table{
 }
 
 type Measurement struct {
+	UPI  string
 	When time.Time
 	Seq  int
 	DegX float64
@@ -222,10 +224,14 @@ func (t *Table) Calibrate(file string) ([]Measurement, error) {
 	if err != nil {
 		return nil, err
 	}
-	var ms []Measurement
+	var (
+		ms []Measurement
+		upi = splitFile(file)
+	)
 	for i := 0; i < len(raw); i++ {
 		m := t.calibrate(raw[i])
 		m.When = when
+		m.UPI = upi
 		ms = append(ms, m)
 	}
 	return ms, nil
@@ -332,4 +338,13 @@ func pick(values []int16, n int) []float64 {
 		vs = append(vs, float64(values[i]))
 	}
 	return vs
+}
+
+func splitFile(file string) string {
+	parts := strings.Split(file, "_")
+	z := len(parts)
+	if z == 0 {
+		return ""
+	}
+	return strings.Join(parts[1:z-5], "_")
 }
