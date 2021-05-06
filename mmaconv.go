@@ -10,8 +10,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strings"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/midbel/toml"
@@ -226,7 +226,7 @@ func (t *Table) Calibrate(file string) ([]Measurement, error) {
 		return nil, err
 	}
 	var (
-		ms []Measurement
+		ms  []Measurement
 		upi = splitFile(file)
 	)
 	for i := 0; i < len(raw); i++ {

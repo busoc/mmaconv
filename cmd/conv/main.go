@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/busoc/mmaconv"
 )
@@ -47,6 +48,7 @@ func main() {
 	var (
 		tbl     = mmaconv.DefaultTable
 		out     File
+		iso     = flag.Bool("i", false, "format time as RFC3339")
 		flat    = flag.Bool("f", false, "keep values of same record")
 		all     = flag.Bool("a", false, "write all fields")
 		mini    = flag.Bool("z", false, "compress output file")
@@ -67,19 +69,28 @@ func main() {
 			w = z
 		}
 	}
-	if err := process(w, tbl, flag.Arg(0), *flat, *all, *recurse); err != nil {
+	if err := process(w, tbl, flag.Arg(0), *flat, *all, *recurse, *iso); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 }
 
-func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse bool) error {
-	writeRecord := writeSplit
+func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse, iso bool) error {
+	var (
+		headers     = splitHeaders
+		writeRecord = writeSplit
+	)
 	if flat {
 		writeRecord = writeFlat
+		headers = nil
 	}
 
 	ws := csv.NewWriter(w)
+	if !all && len(headers) > 0 {
+		if err := ws.Write(headers); err != nil {
+			return err
+		}
+	}
 	filepath.Walk(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -92,7 +103,7 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse bool
 		}
 		ms, err := tbl.Calibrate(file)
 		if err == nil {
-			err = writeRecord(ws, ms, all)
+			err = writeRecord(ws, ms, all, iso)
 		}
 		return err
 	})
@@ -100,14 +111,18 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse bool
 	return ws.Error()
 }
 
-func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
+func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error {
 	size := flatFieldCount
 	if all {
 		size += allFieldDiff
 	}
+	tf := timeFormat
+	if iso {
+		tf = time.RFC3339
+	}
 	str := make([]string, 0, size)
 	for _, m := range data {
-		str = append(str, m.When.Format(timeFormat))
+		str = append(str, m.When.Format(tf))
 		str = append(str, m.UPI)
 		str = append(str, strconv.Itoa(m.Seq))
 		str = append(str, formatFloat(m.DegX))
@@ -141,20 +156,24 @@ var splitHeaders = []string{
 	"Az [microG]",
 }
 
-func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all bool) error {
+func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error {
 	size := splitFieldCount
 	if all {
 		size += allFieldDiff
 	}
-	if !all {
-		if err := ws.Write(splitHeaders); err != nil {
-			return err
-		}
+	// if !all {
+	// 	if err := ws.Write(splitHeaders); err != nil {
+	// 		return err
+	// 	}
+	// }
+	tf := timeFormat
+	if iso {
+		tf = time.RFC3339
 	}
 	str := make([]string, 0, size)
 	for _, m := range data {
 		for i := 0; i < mmaconv.MeasCount; i++ {
-			str = append(str, m.When.Format(timeFormat))
+			str = append(str, m.When.Format(tf))
 			str = append(str, m.UPI)
 			str = append(str, strconv.Itoa(m.Seq))
 			str = append(str, formatFloat(m.DegX))
