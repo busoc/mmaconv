@@ -46,18 +46,29 @@ func (f *File) IsSet() bool {
 	return f.WriteCloser != nil
 }
 
+type Flag struct {
+	Adjust  bool
+	Iso     bool
+	Flat    bool
+	All     bool
+	Mini    bool
+	Recurse bool
+	Order   bool
+}
+
 func main() {
 	var (
-		out     File
-		tbl     = mmaconv.DefaultTable
-		adjust  = flag.Bool("j", false, "adjust time")
-		iso     = flag.Bool("i", false, "format time as RFC3339")
-		flat    = flag.Bool("f", false, "keep values of same record")
-		all     = flag.Bool("a", false, "write all fields")
-		mini    = flag.Bool("z", false, "compress output file")
-		recurse = flag.Bool("r", false, "recurse")
-		order   = flag.Bool("o", false, "order traversing by acqtime available in filename")
+		out File
+		tbl = mmaconv.DefaultTable
+		set Flag
 	)
+	flag.BoolVar(&set.Adjust, "j", false, "adjust time")
+	flag.BoolVar(&set.Iso, "i", false, "format time as RFC3339")
+	flag.BoolVar(&set.Flat, "f", false, "keep values of same record")
+	flag.BoolVar(&set.All, "a", false, "write all fields")
+	flag.BoolVar(&set.Mini, "z", false, "compress output file")
+	flag.BoolVar(&set.Recurse, "r", false, "recurse")
+	flag.BoolVar(&set.Order, "o", false, "order traversing by acqtime available in filename")
 	flag.Var(&tbl, "c", "use parameters table")
 	flag.Var(&out, "w", "output file")
 	flag.Parse()
@@ -67,36 +78,36 @@ func main() {
 		defer out.Close()
 		w = out
 
-		if *mini {
+		if set.Mini {
 			z, _ := gzip.NewWriterLevel(w, gzip.BestCompression)
 			defer z.Close()
 			w = z
 		}
 	}
-	if err := process(w, tbl, flag.Arg(0), *order, *flat, *all, *recurse, *iso, *adjust); err != nil {
+	if err := process(w, tbl, flag.Arg(0), set); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 }
 
-func process(w io.Writer, tbl mmaconv.Table, dir string, order, flat, all, recurse, iso, adjust bool) error {
+func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 	var (
 		headers     = splitHeaders
 		writeRecord = writeSplit
 	)
-	if flat {
+	if set.Flat {
 		writeRecord = writeFlat
 		headers = nil
 	}
 
 	ws := csv.NewWriter(w)
-	if !all && len(headers) > 0 {
+	if !set.All && len(headers) > 0 {
 		if err := ws.Write(headers); err != nil {
 			return err
 		}
 	}
 	var walkfn = filepath.Walk
-	if order {
+	if set.Order {
 		walkfn = walk.Walk
 	}
 	walkfn(dir, func(file string, i os.FileInfo, err error) error {
@@ -104,7 +115,7 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, order, flat, all, recur
 			return err
 		}
 		if i.IsDir() {
-			if !recurse {
+			if !set.Recurse {
 				err = filepath.SkipDir
 			}
 			return err
@@ -112,10 +123,10 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, order, flat, all, recur
 		ms, err := tbl.Calibrate(file)
 		if err == nil {
 			var freq float64
-			if adjust {
+			if set.Adjust {
 				freq = tbl.SampleFrequency()
 			}
-			err = writeRecord(ws, ms, freq, all, iso)
+			err = writeRecord(ws, ms, freq, set.All, set.Iso)
 		}
 		return err
 	})
