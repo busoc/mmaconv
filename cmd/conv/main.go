@@ -9,13 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/busoc/mmaconv"
 )
 
 const (
 	timeFormat      = "2006.002.15.04.05.000000"
+	isoFormat       = "2006-01-02T15:04:05.000000"
 	splitFieldCount = 8 + 1
 	flatFieldCount  = (3 * mmaconv.MeasCount) + 5 + 1
 	allFieldDiff    = 9
@@ -118,7 +118,7 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error 
 	}
 	tf := timeFormat
 	if iso {
-		tf = time.RFC3339
+		tf = isoFormat
 	}
 	str := make([]string, 0, size)
 	for _, m := range data {
@@ -168,7 +168,7 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error
 	// }
 	tf := timeFormat
 	if iso {
-		tf = time.RFC3339
+		tf = isoFormat
 	}
 	str := make([]string, 0, size)
 	for _, m := range data {
