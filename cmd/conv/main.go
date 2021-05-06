@@ -124,7 +124,8 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error 
 	for _, m := range data {
 		str = append(str, m.When.Format(tf))
 		str = append(str, m.UPI)
-		str = append(str, strconv.Itoa(m.Seq))
+		// str = append(str, strconv.Itoa(m.Seq))
+		str = append(str, formatSequence(m.Seq))
 		str = append(str, formatFloat(m.DegX))
 		str = append(str, formatFloat(m.DegY))
 		str = append(str, formatFloat(m.DegZ))
@@ -161,11 +162,6 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error
 	if all {
 		size += allFieldDiff
 	}
-	// if !all {
-	// 	if err := ws.Write(splitHeaders); err != nil {
-	// 		return err
-	// 	}
-	// }
 	tf := timeFormat
 	if iso {
 		tf = isoFormat
@@ -175,7 +171,8 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error
 		for i := 0; i < mmaconv.MeasCount; i++ {
 			str = append(str, m.When.Format(tf))
 			str = append(str, m.UPI)
-			str = append(str, strconv.Itoa(m.Seq))
+			// str = append(str, strconv.Itoa(m.Seq))
+			str = append(str, formatSequence(m.Seq))
 			str = append(str, formatFloat(m.DegX))
 			str = append(str, formatFloat(m.DegY))
 			str = append(str, formatFloat(m.DegZ))
@@ -209,4 +206,9 @@ func appendFields(str []string, m mmaconv.Measurement) []string {
 
 func formatFloat(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
+}
+
+func formatSequence(v int) string {
+	x := uint16(v)
+	return strconv.FormatUint(uint64(x), 10)
 }
