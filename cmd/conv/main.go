@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/busoc/mmaconv"
+	"github.com/busoc/mmaconv/cmd/internal/walk"
 )
 
 const (
@@ -55,6 +56,7 @@ func main() {
 		all     = flag.Bool("a", false, "write all fields")
 		mini    = flag.Bool("z", false, "compress output file")
 		recurse = flag.Bool("r", false, "recurse")
+		order   = flag.Bool("o", false, "order traversing by acqtime available in filename")
 	)
 	flag.Var(&tbl, "c", "use parameters table")
 	flag.Var(&out, "w", "output file")
@@ -71,13 +73,13 @@ func main() {
 			w = z
 		}
 	}
-	if err := process(w, tbl, flag.Arg(0), *flat, *all, *recurse, *iso, *adjust); err != nil {
+	if err := process(w, tbl, flag.Arg(0), *order, *flat, *all, *recurse, *iso, *adjust); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 }
 
-func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse, iso, adjust bool) error {
+func process(w io.Writer, tbl mmaconv.Table, dir string, order, flat, all, recurse, iso, adjust bool) error {
 	var (
 		headers     = splitHeaders
 		writeRecord = writeSplit
@@ -93,7 +95,11 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse, iso
 			return err
 		}
 	}
-	filepath.Walk(dir, func(file string, i os.FileInfo, err error) error {
+	var walkfn = filepath.Walk
+	if order {
+		walkfn = walk.Walk
+	}
+	walkfn(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
