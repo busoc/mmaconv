@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -54,6 +55,7 @@ type Flag struct {
 	Mini    bool
 	Recurse bool
 	Order   bool
+	Quiet   bool
 }
 
 func main() {
@@ -68,20 +70,24 @@ func main() {
 	flag.BoolVar(&set.All, "a", false, "write all fields")
 	flag.BoolVar(&set.Mini, "z", false, "compress output file")
 	flag.BoolVar(&set.Recurse, "r", false, "recurse")
+	flag.BoolVar(&set.Quiet, "q", false, "quiet")
 	flag.BoolVar(&set.Order, "o", false, "order traversing by acqtime available in filename")
 	flag.Var(&tbl, "c", "use parameters table")
 	flag.Var(&out, "w", "output file")
 	flag.Parse()
 
-	var w io.Writer = os.Stdout
-	if out.IsSet() {
-		defer out.Close()
-		w = out
+	var w io.Writer = ioutil.Discard
+	if !set.Quiet {
+		w = os.Stdout
+		if out.IsSet() {
+			defer out.Close()
+			w = out
 
-		if set.Mini {
-			z, _ := gzip.NewWriterLevel(w, gzip.BestCompression)
-			defer z.Close()
-			w = z
+			if set.Mini {
+				z, _ := gzip.NewWriterLevel(w, gzip.BestCompression)
+				defer z.Close()
+				w = z
+			}
 		}
 	}
 	if err := process(w, tbl, flag.Arg(0), set); err != nil {
@@ -255,9 +261,8 @@ func formatFloat(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
-func formatSequence(v int) string {
-	x := uint16(v)
-	return strconv.FormatUint(uint64(x), 10)
+func formatSequence(v uint16) string {
+	return strconv.FormatUint(uint64(v), 10)
 }
 
 const MaxSequence = (1 << 16) - 1

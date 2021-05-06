@@ -107,7 +107,7 @@ var DefaultTable = Table{
 type Measurement struct {
 	UPI  string
 	When time.Time
-	Seq  int
+	Seq  uint16
 	DegX float64
 	DegY float64
 	DegZ float64
@@ -221,7 +221,7 @@ func (t *Table) TempOffsetZ(a float64) float64 {
 }
 
 func (t *Table) Calibrate(file string) ([]Measurement, error) {
-	raw, when, err := Convert(file)
+	raw, err := Convert(file, false)
 	if err != nil {
 		return nil, err
 	}
@@ -231,20 +231,20 @@ func (t *Table) Calibrate(file string) ([]Measurement, error) {
 	)
 	for i := 0; i < len(raw); i++ {
 		m := t.calibrate(raw[i])
-		m.When = when
 		m.UPI = upi
 		ms = append(ms, m)
 	}
 	return ms, nil
 }
 
-func (t *Table) calibrate(raw []int16) Measurement {
+func (t *Table) calibrate(rec Record) Measurement {
 	var m Measurement
-	m.Seq = int(raw[0])
+	m.Seq = rec.Seq
+	m.When = rec.When
 	// temperatures in micro ampere (micXXX) and celsius (celXXX)
-	m.MicX, m.DegX = t.AxisX.Temperatures(float64(raw[1]))
-	m.MicY, m.DegY = t.AxisY.Temperatures(float64(raw[2]))
-	m.MicZ, m.DegZ = t.AxisZ.Temperatures(float64(raw[3]))
+	m.MicX, m.DegX = t.AxisX.Temperatures(float64(rec.Raw[0]))
+	m.MicY, m.DegY = t.AxisY.Temperatures(float64(rec.Raw[1]))
+	m.MicZ, m.DegZ = t.AxisZ.Temperatures(float64(rec.Raw[2]))
 
 	// compute Ai
 	ax := m.MicX + TempDelta
@@ -261,9 +261,9 @@ func (t *Table) calibrate(raw []int16) Measurement {
 	m.OffsetY = t.TempOffsetY(ay)
 	m.OffsetZ = t.TempOffsetZ(az)
 
-	m.AccX = apply(pick(raw, 5), m.ScaleX, m.OffsetX)
-	m.AccY = apply(pick(raw, 6), m.ScaleY, m.OffsetY)
-	m.AccZ = apply(pick(raw, 7), m.ScaleZ, m.OffsetZ)
+	m.AccX = apply(pick(rec.Raw, 4), m.ScaleX, m.OffsetX)
+	m.AccY = apply(pick(rec.Raw, 5), m.ScaleY, m.OffsetY)
+	m.AccZ = apply(pick(rec.Raw, 6), m.ScaleZ, m.OffsetZ)
 
 	return m
 }
@@ -272,34 +272,48 @@ func Calibrate(file string) ([]Measurement, error) {
 	return DefaultTable.Calibrate(file)
 }
 
-func Convert(file string) ([][]int16, time.Time, error) {
+type Record struct {
+	Seq  uint16
+	When time.Time
+	Raw  []int16
+}
+
+func Convert(file string, duplicate bool) ([]Record, error) {
 	buf, when, err := Open(file)
 	if err != nil {
-		return nil, when, err
+		return nil, err
 	}
 	var (
 		sum  = adler32.New()
 		rs   = bytes.NewReader(buf)
 		tee  = io.TeeReader(rs, sum)
 		seen = make(map[uint32]struct{})
-		data [][]int16
+		data []Record
 	)
 	for rs.Len() > 0 {
-		var raw [32]int16
+		var (
+			raw [31]int16
+			rec Record
+		)
+		if err := binary.Read(tee, binary.BigEndian, &rec.Seq); err != nil {
+			return nil, err
+		}
 		if err := binary.Read(tee, binary.BigEndian, &raw); err != nil {
-			return nil, when, err
+			return nil, err
 		}
 		cksum := sum.Sum32()
-		if _, ok := seen[cksum]; !ok {
-			data = append(data, raw[:])
+		if _, ok := seen[cksum]; duplicate || !ok {
+			rec.Raw = append(rec.Raw, raw[:]...)
+			rec.When = when
+			data = append(data, rec)
 			seen[cksum] = struct{}{}
 		}
 		sum.Reset()
 	}
 	sort.Slice(data, func(i, j int) bool {
-		return data[i][0] <= data[j][0]
+		return data[i].Seq <= data[j].Seq
 	})
-	return data, when, nil
+	return data, nil
 }
 
 func Open(file string) ([]byte, time.Time, error) {
