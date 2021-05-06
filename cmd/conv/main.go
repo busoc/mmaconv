@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/busoc/mmaconv"
 )
@@ -46,8 +47,9 @@ func (f *File) IsSet() bool {
 
 func main() {
 	var (
-		tbl     = mmaconv.DefaultTable
 		out     File
+		tbl     = mmaconv.DefaultTable
+		adjust  = flag.Bool("j", false, "adjust time")
 		iso     = flag.Bool("i", false, "format time as RFC3339")
 		flat    = flag.Bool("f", false, "keep values of same record")
 		all     = flag.Bool("a", false, "write all fields")
@@ -69,13 +71,13 @@ func main() {
 			w = z
 		}
 	}
-	if err := process(w, tbl, flag.Arg(0), *flat, *all, *recurse, *iso); err != nil {
+	if err := process(w, tbl, flag.Arg(0), *flat, *all, *recurse, *iso, *adjust); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 }
 
-func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse, iso bool) error {
+func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse, iso, adjust bool) error {
 	var (
 		headers     = splitHeaders
 		writeRecord = writeSplit
@@ -103,7 +105,11 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse, iso
 		}
 		ms, err := tbl.Calibrate(file)
 		if err == nil {
-			err = writeRecord(ws, ms, all, iso)
+			var freq float64
+			if adjust {
+				freq = tbl.SampleFrequency()
+			}
+			err = writeRecord(ws, ms, freq, all, iso)
 		}
 		return err
 	})
@@ -111,20 +117,31 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, flat, all, recurse, iso
 	return ws.Error()
 }
 
-func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error {
-	size := flatFieldCount
+func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, iso bool) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var (
+		size = flatFieldCount
+		tf   = timeFormat
+	)
 	if all {
 		size += allFieldDiff
 	}
-	tf := timeFormat
 	if iso {
 		tf = isoFormat
 	}
-	str := make([]string, 0, size)
-	for _, m := range data {
-		str = append(str, m.When.Format(tf))
+	var (
+		str   = make([]string, 0, size)
+		delta = time.Duration(freq*1_000_000) * time.Microsecond
+		prev  uint16
+		total uint16
+	)
+	for i, m := range data {
+		curr := uint16(m.Seq)
+		total += sequenceDelta(i, curr, prev)
+		str = append(str, m.When.Add(time.Duration(total)*delta).Format(tf))
 		str = append(str, m.UPI)
-		// str = append(str, strconv.Itoa(m.Seq))
 		str = append(str, formatSequence(m.Seq))
 		str = append(str, formatFloat(m.DegX))
 		str = append(str, formatFloat(m.DegY))
@@ -140,6 +157,7 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error 
 		if err := ws.Write(str); err != nil {
 			return err
 		}
+		prev = curr
 		str = str[:0]
 	}
 	return nil
@@ -157,21 +175,32 @@ var splitHeaders = []string{
 	"Az [microG]",
 }
 
-func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error {
-	size := splitFieldCount
+func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, iso bool) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var (
+		size = splitFieldCount
+		tf   = timeFormat
+	)
 	if all {
 		size += allFieldDiff
 	}
-	tf := timeFormat
 	if iso {
 		tf = isoFormat
 	}
-	str := make([]string, 0, size)
-	for _, m := range data {
+	var (
+		str   = make([]string, 0, size)
+		delta = time.Duration(freq*1_000_000) * time.Microsecond
+		prev  uint16
+		total uint16
+	)
+	for i, m := range data {
+		curr := uint16(m.Seq)
+		total += sequenceDelta(i, curr, prev)
 		for i := 0; i < mmaconv.MeasCount; i++ {
-			str = append(str, m.When.Format(tf))
+			str = append(str, m.When.Add(time.Duration(total+uint16(i))*delta).Format(tf))
 			str = append(str, m.UPI)
-			// str = append(str, strconv.Itoa(m.Seq))
 			str = append(str, formatSequence(m.Seq))
 			str = append(str, formatFloat(m.DegX))
 			str = append(str, formatFloat(m.DegY))
@@ -187,6 +216,7 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, all, iso bool) error
 			}
 			str = str[:0]
 		}
+		prev = curr
 	}
 	return nil
 }
@@ -211,4 +241,16 @@ func formatFloat(v float64) string {
 func formatSequence(v int) string {
 	x := uint16(v)
 	return strconv.FormatUint(uint64(x), 10)
+}
+
+const MaxSequence = (1 << 16) - 1
+
+func sequenceDelta(iter int, curr, prev uint16) uint16 {
+	if iter <= 0 {
+		return 0
+	}
+	if curr < prev {
+		return curr + (MaxSequence - prev)
+	}
+	return curr - prev
 }
