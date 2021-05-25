@@ -10,7 +10,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -290,7 +289,7 @@ func Convert(file string, duplicate bool) ([]Record, error) {
 		seen = make(map[uint32]struct{})
 		data []Record
 	)
-	for rs.Len() > 0 {
+	for i := 0; rs.Len() > 0; i++ {
 		var (
 			raw [31]int16
 			rec Record
@@ -305,15 +304,29 @@ func Convert(file string, duplicate bool) ([]Record, error) {
 		if _, ok := seen[cksum]; duplicate || !ok {
 			rec.Raw = append(rec.Raw, raw[:]...)
 			rec.When = when
-			data = append(data, rec)
+			data = insertRecord(data, rec)
 			seen[cksum] = struct{}{}
 		}
 		sum.Reset()
 	}
-	sort.Slice(data, func(i, j int) bool {
-		return data[i].Seq <= data[j].Seq
-	})
 	return data, nil
+}
+
+func insertRecord(data []Record, rec Record) []Record {
+	z := len(data)
+	if z == 0 {
+		data = append(data, rec)
+		return data
+	}
+	for i := z-1; i >= 0; i-- {
+		diff := int16(rec.Seq) - int16(data[i].Seq)
+		if diff >= 0 {
+			data = append(data[:i+1], append([]Record{rec}, data[i+1:]...)...)
+			return data
+		}
+	}
+	data = append([]Record{rec}, data...)
+	return data
 }
 
 func Open(file string) ([]byte, time.Time, error) {

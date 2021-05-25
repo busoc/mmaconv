@@ -272,7 +272,7 @@ func sequenceDelta(iter int, curr, prev uint16) uint16 {
 		return 0
 	}
 	if curr < prev {
-		return curr + (MaxSequence - prev)
+		return curr + (MaxSequence - prev) + 1
 	}
 	return curr - prev
 }

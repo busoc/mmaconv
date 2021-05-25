@@ -4,48 +4,59 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"strconv"
 
 	"github.com/busoc/mmaconv"
+	"github.com/busoc/mmaconv/cmd/internal/walk"
 )
 
 func main() {
-	nodup := flag.Bool("d", false, "remove duplicate")
+	var (
+		quiet = flag.Bool("q", false, "quiet")
+		nodup = flag.Bool("d", false, "remove duplicate")
+	)
 	flag.Parse()
 
-	data, err := mmaconv.Convert(flag.Arg(0), !*nodup)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	var out io.Writer = os.Stdout
+	if *quiet {
+		out = ioutil.Discard
 	}
-
-	if len(data) == 0 {
-		return
-	}
-
-	ws := csv.NewWriter(os.Stdout)
+	ws := csv.NewWriter(out)
 	defer ws.Flush()
+
 
 	var (
 		str  = make([]string, 2, 32)
 		prev uint16
 	)
-	for i, rec := range data {
-		var diff uint16
-		if i > 0 {
-			diff = rec.Seq - prev
+	walk.Walk(flag.Arg(0), func(file string, i os.FileInfo, err error) error {
+		if err != nil || i.IsDir() {
+			return err
 		}
-		prev = rec.Seq
-		str[0] = strconv.FormatUint(uint64(diff), 10)
-		str[1] = strconv.FormatUint(uint64(rec.Seq), 10)
-		for i := range rec.Raw[1:] {
-			str = append(str, strconv.FormatInt(int64(rec.Raw[i+1]), 10))
+
+		data, err := mmaconv.Convert(file, !*nodup)
+		if err != nil {
+			return nil
 		}
-		if err := ws.Write(str); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
+		for i, rec := range data {
+			var diff uint16
+			if i > 0 {
+				diff = rec.Seq - prev
+			}
+			prev = rec.Seq
+			str[0] = strconv.FormatUint(uint64(diff), 10)
+			str[1] = strconv.FormatUint(uint64(rec.Seq), 10)
+			for i := range rec.Raw[1:] {
+				str = append(str, strconv.FormatInt(int64(rec.Raw[i+1]), 10))
+			}
+			if err := ws.Write(str); err != nil {
+				return err
+			}
+			str = str[:2]
 		}
-		str = str[:2]
-	}
+		return nil
+	})
 }
