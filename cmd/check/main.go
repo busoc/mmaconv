@@ -11,13 +11,14 @@ import (
 )
 
 const (
-	Diff        = time.Microsecond * 666
+	Diff        = time.Microsecond * 750
 	Format      = "2006-01-02 15:04:05.000000"
 	Pattern     = "%d: %s - %s => diff: %10s (prev: %6d, curr: %6d, delta: %6d)"
 	MaxSequence = (1 << 16) - 1
 )
 
 func main() {
+	mindur := flag.Duration("d", Diff, "check for difference greater than the given duration")
 	flag.Parse()
 
 	var r io.Reader = os.Stdin
@@ -49,7 +50,7 @@ func main() {
 	}
 }
 
-func check(row []string, rid int, prev time.Time, last uint16) (time.Time, uint16) {
+func check(row []string, rid int, prev time.Time, last uint16, delta time.Duration) (time.Time, uint16) {
 	var (
 		now  = getTime(row[0])
 		curr = getCount(row[2])
@@ -63,7 +64,7 @@ func check(row []string, rid int, prev time.Time, last uint16) (time.Time, uint1
 		}
 		var (
 			seqcheck = diff != 0 && diff != 9
-			timcheck = now.Sub(prev) < 0 || now.Sub(prev) > Diff
+			timcheck = now.Sub(prev) < 0 || now.Sub(prev) > delta
 		)
 		if timcheck || seqcheck {
 			var (

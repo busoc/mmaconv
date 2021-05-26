@@ -56,6 +56,7 @@ type Flag struct {
 	Recurse bool
 	Order   bool
 	Quiet   bool
+	Time    time.Duration
 }
 
 func main() {
@@ -72,6 +73,7 @@ func main() {
 	flag.BoolVar(&set.Recurse, "r", false, "recurse")
 	flag.BoolVar(&set.Quiet, "q", false, "quiet")
 	flag.BoolVar(&set.Order, "o", false, "order traversing by acqtime available in filename")
+	flag.DurationVar(&set.Time, "t", 0, "time interval between two records")
 	flag.Var(&tbl, "c", "use parameters table")
 	flag.Var(&out, "w", "output file")
 	flag.Parse()
@@ -117,8 +119,6 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 	if set.Order {
 		walkfn = walk.Walk
 	}
-	var last time.Time
-	const formtime = "2006-01-02 15:04:05.000000"
 	walkfn(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -133,17 +133,12 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 		if len(ms) == 0 {
 			return err
 		}
-		var delta time.Duration
-		if !last.IsZero() {
-			delta = ms[0].When.Sub(last)
-		}
-		fmt.Println(last.Format(formtime), ms[0].When.Format(formtime), delta, len(ms))
 		if err == nil {
 			var freq float64
 			if set.Adjust {
 				freq = tbl.SampleFrequency()
 			}
-			last, err = writeRecord(ws, ms, freq, set.All, set.Iso)
+			_, err = writeRecord(ws, ms, freq, set)
 		}
 		return err
 	})
@@ -163,7 +158,7 @@ var splitHeaders = []string{
 	"Az [microG]",
 }
 
-func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, iso bool) (time.Time, error) {
+func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Flag) (time.Time, error) {
 	var now time.Time
 	if len(data) == 0 {
 		return now, nil
@@ -172,10 +167,10 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, i
 		size = splitFieldCount
 		tf   = timeFormat
 	)
-	if all {
+	if set.All {
 		size += allFieldDiff
 	}
-	if iso {
+	if set.Iso {
 		tf = isoFormat
 	}
 	var (
@@ -184,6 +179,9 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, i
 		prev    uint16
 		elapsed time.Duration
 	)
+	if set.Time > 0 {
+		delta = set.Time
+	}
 	for i, m := range data {
 		curr := uint16(m.Seq)
 		if d := sequenceDelta(i, curr, prev); d > 0 && d != mmaconv.MeasCount {
@@ -198,7 +196,7 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, i
 			str = append(str, formatFloat(m.DegX))
 			str = append(str, formatFloat(m.DegY))
 			str = append(str, formatFloat(m.DegZ))
-			if all {
+			if set.All {
 				str = appendFields(str, m)
 			}
 			str = append(str, formatFloat(m.AccX[i]))
@@ -216,7 +214,7 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, i
 	return now, ws.Error()
 }
 
-func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, iso bool) (time.Time, error) {
+func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Flag) (time.Time, error) {
 	var now time.Time
 	if len(data) == 0 {
 		return now, nil
@@ -225,10 +223,10 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, is
 		size = flatFieldCount
 		tf   = timeFormat
 	)
-	if all {
+	if set.All {
 		size += allFieldDiff
 	}
-	if iso {
+	if set.Iso {
 		tf = isoFormat
 	}
 	var (
@@ -237,6 +235,9 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, is
 		prev    uint16
 		elapsed time.Duration
 	)
+	if set.Time > 0 {
+		delta = set.Time
+	}
 	for i, m := range data {
 		curr := uint16(m.Seq)
 		if d := sequenceDelta(i, curr, prev); d > 0 && d != mmaconv.MeasCount {
@@ -250,7 +251,7 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, is
 		str = append(str, formatFloat(m.DegX))
 		str = append(str, formatFloat(m.DegY))
 		str = append(str, formatFloat(m.DegZ))
-		if all {
+		if set.All {
 			str = appendFields(str, m)
 		}
 		for i := 0; i < mmaconv.MeasCount; i++ {
