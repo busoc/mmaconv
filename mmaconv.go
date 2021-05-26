@@ -107,6 +107,7 @@ type Measurement struct {
 	UPI  string
 	When time.Time
 	Seq  uint16
+	Vid  uint32
 	DegX float64
 	DegY float64
 	DegZ float64
@@ -239,6 +240,7 @@ func (t *Table) Calibrate(file string) ([]Measurement, error) {
 func (t *Table) calibrate(rec Record) Measurement {
 	var m Measurement
 	m.Seq = rec.Seq
+	m.Vid = rec.Vid
 	m.When = rec.When
 	// temperatures in micro ampere (micXXX) and celsius (celXXX)
 	m.MicX, m.DegX = t.AxisX.Temperatures(float64(rec.Raw[0]))
@@ -272,19 +274,21 @@ func Calibrate(file string) ([]Measurement, error) {
 }
 
 type Record struct {
-	Seq  uint16
-	When time.Time
-	Raw  []int16
+	Seq     uint16
+	Vid     uint32
+	When    time.Time
+	Raw     []int16
+	CanDate bool
 }
 
 func Convert(file string, duplicate bool) ([]Record, error) {
-	buf, when, err := Open(file)
+	mma, err := Open(file)
 	if err != nil {
 		return nil, err
 	}
 	var (
 		sum  = adler32.New()
-		rs   = bytes.NewReader(buf)
+		rs   = bytes.NewReader(mma.Raw)
 		tee  = io.TeeReader(rs, sum)
 		seen = make(map[uint32]struct{})
 		data []Record
@@ -303,7 +307,8 @@ func Convert(file string, duplicate bool) ([]Record, error) {
 		cksum := sum.Sum32()
 		if _, ok := seen[cksum]; duplicate || !ok {
 			rec.Raw = append(rec.Raw, raw[:]...)
-			rec.When = when
+			rec.When = mma.When
+			rec.Vid = mma.Vid
 			data = insertRecord(data, rec)
 			seen[cksum] = struct{}{}
 		}
@@ -312,14 +317,24 @@ func Convert(file string, duplicate bool) ([]Record, error) {
 	return data, nil
 }
 
+const (
+	AvgCount = 219
+	MinDelta = -AvgCount * MeasCount
+	MaxDelta = AvgCount * MeasCount
+)
+
 func insertRecord(data []Record, rec Record) []Record {
 	z := len(data)
 	if z == 0 {
 		data = append(data, rec)
 		return data
 	}
-	for i := z-1; i >= 0; i-- {
+	for i := z - 1; i >= 0; i-- {
 		diff := int16(rec.Seq) - int16(data[i].Seq)
+		if len(data) == 4 && (diff < MinDelta || diff > MaxDelta) {
+			data = append(make([]Record, 0, len(data)), rec)
+			return data
+		}
 		if diff >= 0 {
 			data = append(data[:i+1], append([]Record{rec}, data[i+1:]...)...)
 			return data
@@ -329,10 +344,17 @@ func insertRecord(data []Record, rec Record) []Record {
 	return data
 }
 
-func Open(file string) ([]byte, time.Time, error) {
+type MMA struct {
+	Raw  []byte
+	When time.Time
+	Vid  uint32
+}
+
+func Open(file string) (MMA, error) {
+	var m MMA
 	r, err := os.Open(file)
 	if err != nil {
-		return nil, time.Time{}, err
+		return m, err
 	}
 	defer r.Close()
 
@@ -342,13 +364,17 @@ func Open(file string) ([]byte, time.Time, error) {
 		Time int64
 	}{}
 	if err := binary.Read(r, binary.BigEndian, &hdr); err != nil {
-		return nil, time.Time{}, err
+		return m, err
 	}
 	if !bytes.Equal(hdr.FCC[:], Magic) {
-		return nil, time.Time{}, fmt.Errorf("%s: invalid FCC", string(hdr.FCC[:]))
+		return m, fmt.Errorf("%s: invalid FCC", string(hdr.FCC[:]))
 	}
-	buf, err := ioutil.ReadAll(r)
-	return buf, Epoch.Add(time.Duration(hdr.Time)), err
+	if m.Raw, err = ioutil.ReadAll(r); err != nil {
+		return m, err
+	}
+	m.When = Epoch.Add(time.Duration(hdr.Time))
+	m.Vid = hdr.Seq
+	return m, err
 }
 
 func apply(values []float64, sf, off float64) []float64 {

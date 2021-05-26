@@ -19,8 +19,8 @@ import (
 const (
 	timeFormat      = "2006.002.15.04.05.000000"
 	isoFormat       = "2006-01-02T15:04:05.000000"
-	splitFieldCount = 8 + 1
-	flatFieldCount  = (3 * mmaconv.MeasCount) + 5 + 1
+	splitFieldCount = 10
+	flatFieldCount  = (3 * mmaconv.MeasCount) + 7
 	allFieldDiff    = 9
 )
 
@@ -61,8 +61,8 @@ type Flag struct {
 func main() {
 	var (
 		out File
-		tbl = mmaconv.DefaultTable
 		set Flag
+		tbl = mmaconv.DefaultTable
 	)
 	flag.BoolVar(&set.Adjust, "j", false, "adjust time")
 	flag.BoolVar(&set.Iso, "i", false, "format time as RFC3339")
@@ -111,11 +111,14 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 		if err := ws.Write(headers); err != nil {
 			return err
 		}
+		ws.Flush()
 	}
 	var walkfn = filepath.Walk
 	if set.Order {
 		walkfn = walk.Walk
 	}
+	var last time.Time
+	const formtime = "2006-01-02 15:04:05.000000"
 	walkfn(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -127,69 +130,31 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 			return err
 		}
 		ms, err := tbl.Calibrate(file)
+		if len(ms) == 0 {
+			return err
+		}
+		var delta time.Duration
+		if !last.IsZero() {
+			delta = ms[0].When.Sub(last)
+		}
+		fmt.Println(last.Format(formtime), ms[0].When.Format(formtime), delta, len(ms))
 		if err == nil {
 			var freq float64
 			if set.Adjust {
 				freq = tbl.SampleFrequency()
 			}
-			err = writeRecord(ws, ms, freq, set.All, set.Iso)
+			last, err = writeRecord(ws, ms, freq, set.All, set.Iso)
 		}
 		return err
 	})
-	ws.Flush()
 	return ws.Error()
-}
-
-func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, iso bool) error {
-	if len(data) == 0 {
-		return nil
-	}
-	var (
-		size = flatFieldCount
-		tf   = timeFormat
-	)
-	if all {
-		size += allFieldDiff
-	}
-	if iso {
-		tf = isoFormat
-	}
-	var (
-		str   = make([]string, 0, size)
-		delta = time.Duration(freq*1_000_000) * time.Microsecond
-		prev  uint16
-		total uint16
-	)
-	for i, m := range data {
-		curr := uint16(m.Seq)
-		total += sequenceDelta(i, curr, prev)
-		str = append(str, m.When.Add(time.Duration(total)*delta).Format(tf))
-		str = append(str, m.UPI)
-		str = append(str, formatSequence(m.Seq))
-		str = append(str, formatFloat(m.DegX))
-		str = append(str, formatFloat(m.DegY))
-		str = append(str, formatFloat(m.DegZ))
-		if all {
-			str = appendFields(str, m)
-		}
-		for i := 0; i < mmaconv.MeasCount; i++ {
-			str = append(str, formatFloat(m.AccX[i]))
-			str = append(str, formatFloat(m.AccY[i]))
-			str = append(str, formatFloat(m.AccZ[i]))
-		}
-		if err := ws.Write(str); err != nil {
-			return err
-		}
-		prev = curr
-		str = str[:0]
-	}
-	return nil
 }
 
 var splitHeaders = []string{
 	"time",
 	"upi",
 	"sequence",
+	"vmu-sequence",
 	"Tx [degC]",
 	"Ty [degC]",
 	"Tz [degC]",
@@ -198,9 +163,10 @@ var splitHeaders = []string{
 	"Az [microG]",
 }
 
-func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, iso bool) error {
+func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, iso bool) (time.Time, error) {
+	var now time.Time
 	if len(data) == 0 {
-		return nil
+		return now, nil
 	}
 	var (
 		size = splitFieldCount
@@ -213,18 +179,22 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, i
 		tf = isoFormat
 	}
 	var (
-		str   = make([]string, 0, size)
-		delta = time.Duration(freq*1_000_000) * time.Microsecond
-		prev  uint16
-		total uint16
+		str     = make([]string, 0, size)
+		delta   = time.Duration(freq*1_000_000) * time.Microsecond
+		prev    uint16
+		elapsed time.Duration
 	)
 	for i, m := range data {
 		curr := uint16(m.Seq)
-		total += sequenceDelta(i, curr, prev)
+		if d := sequenceDelta(i, curr, prev); d > 0 && d != mmaconv.MeasCount {
+			elapsed += delta * time.Duration(d/mmaconv.MeasCount)
+		}
 		for i := 0; i < mmaconv.MeasCount; i++ {
-			str = append(str, m.When.Add(time.Duration(total+uint16(i))*delta).Format(tf))
+			now = m.When.Add(elapsed)
+			str = append(str, now.Format(tf))
 			str = append(str, m.UPI)
 			str = append(str, formatSequence(m.Seq))
+			str = append(str, formatSequence2(m.Vid))
 			str = append(str, formatFloat(m.DegX))
 			str = append(str, formatFloat(m.DegY))
 			str = append(str, formatFloat(m.DegZ))
@@ -235,13 +205,68 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, i
 			str = append(str, formatFloat(m.AccY[i]))
 			str = append(str, formatFloat(m.AccZ[i]))
 			if err := ws.Write(str); err != nil {
-				return err
+				return now, err
 			}
 			str = str[:0]
+			elapsed += delta
 		}
 		prev = curr
 	}
-	return nil
+	ws.Flush()
+	return now, ws.Error()
+}
+
+func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, all, iso bool) (time.Time, error) {
+	var now time.Time
+	if len(data) == 0 {
+		return now, nil
+	}
+	var (
+		size = flatFieldCount
+		tf   = timeFormat
+	)
+	if all {
+		size += allFieldDiff
+	}
+	if iso {
+		tf = isoFormat
+	}
+	var (
+		str     = make([]string, 0, size)
+		delta   = time.Duration(freq*1_000_000) * time.Microsecond
+		prev    uint16
+		elapsed time.Duration
+	)
+	for i, m := range data {
+		curr := uint16(m.Seq)
+		if d := sequenceDelta(i, curr, prev); d > 0 && d != mmaconv.MeasCount {
+			elapsed += delta * time.Duration(d/mmaconv.MeasCount)
+		}
+		now = m.When.Add(elapsed)
+		str = append(str, now.Format(tf))
+		str = append(str, m.UPI)
+		str = append(str, formatSequence(m.Seq))
+		str = append(str, formatSequence2(m.Vid))
+		str = append(str, formatFloat(m.DegX))
+		str = append(str, formatFloat(m.DegY))
+		str = append(str, formatFloat(m.DegZ))
+		if all {
+			str = appendFields(str, m)
+		}
+		for i := 0; i < mmaconv.MeasCount; i++ {
+			str = append(str, formatFloat(m.AccX[i]))
+			str = append(str, formatFloat(m.AccY[i]))
+			str = append(str, formatFloat(m.AccZ[i]))
+		}
+		if err := ws.Write(str); err != nil {
+			return now, err
+		}
+		elapsed += mmaconv.MeasCount * delta
+		prev = curr
+		str = str[:0]
+	}
+	ws.Flush()
+	return now, ws.Error()
 }
 
 func appendFields(str []string, m mmaconv.Measurement) []string {
@@ -259,6 +284,10 @@ func appendFields(str []string, m mmaconv.Measurement) []string {
 
 func formatFloat(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
+}
+
+func formatSequence2(v uint32) string {
+	return strconv.FormatUint(uint64(v), 10)
 }
 
 func formatSequence(v uint16) string {

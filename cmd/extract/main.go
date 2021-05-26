@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/csv"
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -26,7 +25,6 @@ func main() {
 	}
 	ws := csv.NewWriter(out)
 	defer ws.Flush()
-
 
 	var (
 		str  = make([]string, 2, 32)
