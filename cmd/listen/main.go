@@ -56,7 +56,7 @@ func main() {
 	for m := range queue {
 		if err := Process(m, opt); err != nil {
 			fmt.Fprintf(os.Stderr, "fail to process file %s: %w", m.Reference, err)
-      fmt.Fprintln(os.Stderr)
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 }
