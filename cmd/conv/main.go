@@ -184,12 +184,17 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Fl
 	}
 	for i, m := range data {
 		curr := uint16(m.Seq)
-		if d := sequenceDelta(i, curr, prev); d > 0 && d != mmaconv.MeasCount {
+		if d := sequenceDelta(i, curr, prev); elapsed > 0 && d > 0 && d != mmaconv.MeasCount {
+			fmt.Println(prev, curr, d)
 			elapsed += delta * time.Duration(d/mmaconv.MeasCount)
 		}
 		for i := 0; i < mmaconv.MeasCount; i++ {
-			now = m.When.Add(elapsed)
-			str = append(str, now.Format(tf))
+			if m.NoDate {
+				str = append(str, "")
+			} else {
+				now = m.When.Add(elapsed)
+				str = append(str, now.Format(tf))
+			}
 			str = append(str, m.UPI)
 			str = append(str, formatSequence(m.Seq))
 			str = append(str, formatSequence2(m.Vid))
@@ -206,7 +211,9 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Fl
 				return now, err
 			}
 			str = str[:0]
-			elapsed += delta
+			if !m.NoDate {
+				elapsed += delta
+			}
 		}
 		prev = curr
 	}
@@ -240,11 +247,15 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Fla
 	}
 	for i, m := range data {
 		curr := uint16(m.Seq)
-		if d := sequenceDelta(i, curr, prev); d > 0 && d != mmaconv.MeasCount {
+		if d := sequenceDelta(i, curr, prev); elapsed > 0 && d > 0 && d != mmaconv.MeasCount {
 			elapsed += delta * time.Duration(d/mmaconv.MeasCount)
 		}
-		now = m.When.Add(elapsed)
-		str = append(str, now.Format(tf))
+		if m.NoDate {
+			str = append(str, "")
+		} else {
+			now = m.When.Add(elapsed)
+			str = append(str, now.Format(tf))
+		}
 		str = append(str, m.UPI)
 		str = append(str, formatSequence(m.Seq))
 		str = append(str, formatSequence2(m.Vid))
@@ -262,7 +273,9 @@ func writeFlat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Fla
 		if err := ws.Write(str); err != nil {
 			return now, err
 		}
-		elapsed += mmaconv.MeasCount * delta
+		if !m.NoDate {
+			elapsed += mmaconv.MeasCount * delta
+		}
 		prev = curr
 		str = str[:0]
 	}

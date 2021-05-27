@@ -276,11 +276,11 @@ func Calibrate(file string) ([]Measurement, error) {
 }
 
 type Record struct {
-	Seq     uint16
-	Vid     uint32
-	When    time.Time
-	Raw     []int16
-	CanDate bool
+	Seq    uint16
+	Vid    uint32
+	When   time.Time
+	Raw    []int16
+	NoDate bool
 }
 
 func (r Record) Measurement() Measurement {
@@ -338,9 +338,16 @@ func insertRecord(data []Record, rec Record) []Record {
 		return data
 	}
 	for i := z - 1; i >= 0; i-- {
+		if data[i].NoDate {
+			break
+		}
 		diff := int16(rec.Seq) - int16(data[i].Seq)
 		if len(data) == 4 && (diff < MinDelta || diff > MaxDelta) {
-			data = append(make([]Record, 0, len(data)), rec)
+			// data = append(make([]Record, 0, len(data)), rec)
+			for i := 0; i < len(data); i++ {
+				data[i].NoDate = true
+			}
+			data = append(data, rec)
 			return data
 		}
 		if diff >= 0 {
