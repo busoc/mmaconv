@@ -1,2 +1,8 @@
+github.com/busoc/hadock v0.6.5 h1:twWnp+WELsju6ZNeaUs7BzCIr/AZGDSZGc+G6zNnz3c=
+github.com/busoc/hadock v0.6.5/go.mod h1:Dy+WdBOeyI6QsEaT6Je3ftAYqFKTs7p8shGY1HEDlcM=
+github.com/busoc/panda v0.0.0-20201007135031-1549436a08e3 h1:OVkv/hen7Auu+2i0pqXvhCCCkYnIVBIsVzDIqfCjD34=
+github.com/busoc/panda v0.0.0-20201007135031-1549436a08e3/go.mod h1:F+L1RCT/cJSZi107Ce5IJmXO5OrjtvsCdGS6D3+kS/o=
+github.com/midbel/rustine v0.0.0-20180831055947-a615f9ba09ac h1:2Cs0YkeMUJU7zi/5UQ/V8cJkH8+M1NyU5KNyxkIxnPc=
+github.com/midbel/rustine v0.0.0-20180831055947-a615f9ba09ac/go.mod h1:1z+CfWtJLi5hTtII9OXnDKtx2pTgMcO/IExI//uXl4s=
 github.com/midbel/toml v1.0.1 h1:Va/vbvvo+ic6Zc9J8tD19jRZzjxwCxCCt5QzZAmf7xM=
 github.com/midbel/toml v1.0.1/go.mod h1:+sjz9eF3MUm1viemJC2sOXFVLrtmkWunF6rmX1zDKM0=

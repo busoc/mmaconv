@@ -24,8 +24,8 @@ const (
 )
 
 const (
-	MaxCounter = 1 << 16
-	MaxValue   = 1 << 15
+	MaxSequence = (1 << 16) - 1
+	MaxValue    = 1 << 15
 )
 
 var (

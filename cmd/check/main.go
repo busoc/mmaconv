@@ -8,13 +8,14 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/busoc/mmaconv"
 )
 
 const (
-	Diff        = time.Microsecond * 750
-	Format      = "2006-01-02 15:04:05.000000"
-	Pattern     = "%d: %s - %s => diff: %10s (prev: %6d, curr: %6d, delta: %6d)"
-	MaxSequence = (1 << 16) - 1
+	Diff    = time.Microsecond * 750
+	Format  = "2006-01-02 15:04:05.000000"
+	Pattern = "%d: %s - %s => diff: %10s (prev: %6d, curr: %6d, delta: %6d)"
 )
 
 func main() {
@@ -46,7 +47,7 @@ func main() {
 		if row == nil || err != nil {
 			break
 		}
-		prev, last = check(row, i, prev, last)
+		prev, last = check(row, i, prev, last, *mindur)
 	}
 }
 
@@ -60,7 +61,7 @@ func check(row []string, rid int, prev time.Time, last uint16, delta time.Durati
 		if curr >= last {
 			diff = curr - last
 		} else {
-			diff = curr + (MaxSequence - last) + 1
+			diff = curr + (mmaconv.MaxSequence - last) + 1
 		}
 		var (
 			seqcheck = diff != 0 && diff != 9
