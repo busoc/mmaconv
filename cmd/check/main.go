@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/csv"
 	"flag"
 	"fmt"
@@ -30,7 +31,13 @@ func main() {
 			os.Exit(1)
 		}
 		defer f.Close()
-		r = f
+
+		if z, err := gzip.NewReader(f); err == nil {
+			defer z.Close()
+			r = z
+		} else {
+			f.Seek(0, io.SeekStart)
+		}
 	}
 
 	rs := csv.NewReader(r)
