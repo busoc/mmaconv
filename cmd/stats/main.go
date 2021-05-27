@@ -15,12 +15,13 @@ import (
 const Pattern = "%s %4d: %6d (vmu-seq: %6d)"
 
 func main() {
+  withbad := flag.Bool("b", false, "keep bad files")
 	flag.Parse()
 
 	for _, a := range flag.Args() {
 		var (
-			prefix = fmt.Sprintf("doy %s:", filepath.Base(a))
-			stat   = collect(a)
+			prefix = fmt.Sprintf("doy %s:", splitFile(a))
+			stat   = collect(a, *withbad)
 		)
 		for i, k := range stat.Keys {
 			fmt.Printf(Pattern, prefix, k, stat.Stats[k].Count, stat.Stats[k].Seq)
@@ -30,6 +31,18 @@ func main() {
 			}
 		}
 	}
+}
+
+func splitFile(file string) string {
+  file = filepath.Clean(file)
+  var (
+    parts = strings.Split(file, "/")
+    size = len(parts)
+  )
+  if size < 2 {
+    return file
+  }
+  return strings.Join(parts[size-2:], "/")
 }
 
 type Count struct {
@@ -42,7 +55,7 @@ type Stat struct {
 	Stats map[int]Count
 }
 
-func collect(dir string) Stat {
+func collect(dir string, bad bool) Stat {
 	s := Stat{
 		Stats: make(map[int]Count),
 	}
@@ -50,6 +63,9 @@ func collect(dir string) Stat {
 		if err != nil || i.IsDir() {
 			return err
 		}
+    if ext := filepath.Ext(file); !bad && ext == ".bad" {
+      return nil
+    }
 		rs, err := mmaconv.Convert(file, false)
 		if err != nil || len(rs) == 0 {
 			return err
