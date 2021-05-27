@@ -31,6 +31,7 @@ const (
 )
 
 type Flag struct {
+	Indatable bool
 	Iso  bool
 	All  bool
 	Time time.Duration
@@ -67,7 +68,7 @@ func Split(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Flag) (
 			elapsed += delta * time.Duration(d/mmaconv.MeasCount)
 		}
 		for i := 0; i < mmaconv.MeasCount; i++ {
-			if m.NoDate {
+			if m.NoDate || set.Indatable {
 				str = append(str, "")
 			} else {
 				now = m.When.Add(elapsed)
@@ -128,7 +129,7 @@ func Flat(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Flag) (t
 		if d := sequenceDelta(i, curr, prev); elapsed > 0 && d > 0 && d != mmaconv.MeasCount {
 			elapsed += delta * time.Duration(d/mmaconv.MeasCount)
 		}
-		if m.NoDate {
+		if m.NoDate || set.Indatable {
 			str = append(str, "")
 		} else {
 			now = m.When.Add(elapsed)

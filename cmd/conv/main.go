@@ -49,6 +49,7 @@ type Flag struct {
 	Order   bool
 	Quiet   bool
 	Time    time.Duration
+	RecPer  int
 }
 
 func (f Flag) DumpFlag() dump.Flag {
@@ -58,6 +59,8 @@ func (f Flag) DumpFlag() dump.Flag {
 		Time: f.Time,
 	}
 }
+
+const Threshold = 1512
 
 func main() {
 	var (
@@ -74,6 +77,7 @@ func main() {
 	flag.BoolVar(&set.Quiet, "q", false, "quiet")
 	flag.BoolVar(&set.Order, "o", false, "order traversing by acqtime available in filename")
 	flag.DurationVar(&set.Time, "t", 0, "time interval between two records")
+	flag.IntVar(&set.RecPer, "b", Threshold, "max number of records per input files to compute date of each")
 	flag.Var(&tbl, "c", "use parameters table")
 	flag.Var(&out, "w", "output file")
 	flag.Parse()
@@ -138,7 +142,11 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 			if set.Adjust {
 				freq = tbl.SampleFrequency()
 			}
-			_, err = writeRecord(ws, ms, freq, set.DumpFlag())
+			df := set.DumpFlag()
+			if n := len(ms) * mmaconv.MeasCount; set.RecPer > 0 && n >= set.RecPer {
+				df.Indatable = true
+			}
+			_, err = writeRecord(ws, ms, freq, df)
 		}
 		return err
 	})
