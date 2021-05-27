@@ -175,7 +175,7 @@ func writeSplit(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Fl
 	}
 	var (
 		str     = make([]string, 0, size)
-		delta   = time.Duration(freq*1_000_000) * time.Microsecond
+		delta   = time.Duration(freq*1_000_000_000) * time.Nanosecond
 		prev    uint16
 		elapsed time.Duration
 	)

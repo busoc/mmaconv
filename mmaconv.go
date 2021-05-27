@@ -104,10 +104,13 @@ var DefaultTable = Table{
 }
 
 type Measurement struct {
+	Record
 	UPI  string
-	When time.Time
-	Seq  uint16
-	Vid  uint32
+	// When time.Time
+	// Seq  uint16
+	// Vid  uint32
+
+
 	DegX float64
 	DegY float64
 	DegZ float64
@@ -238,19 +241,19 @@ func (t *Table) Calibrate(file string) ([]Measurement, error) {
 }
 
 func (t *Table) calibrate(rec Record) Measurement {
-	var m Measurement
-	m.Seq = rec.Seq
-	m.Vid = rec.Vid
-	m.When = rec.When
+	m := rec.Measurement()
+
 	// temperatures in micro ampere (micXXX) and celsius (celXXX)
-	m.MicX, m.DegX = t.AxisX.Temperatures(float64(rec.Raw[0]))
-	m.MicY, m.DegY = t.AxisY.Temperatures(float64(rec.Raw[1]))
-	m.MicZ, m.DegZ = t.AxisZ.Temperatures(float64(rec.Raw[2]))
+	m.MicX, m.DegX = t.AxisX.Temperatures(float64(m.Raw[0]))
+	m.MicY, m.DegY = t.AxisY.Temperatures(float64(m.Raw[1]))
+	m.MicZ, m.DegZ = t.AxisZ.Temperatures(float64(m.Raw[2]))
 
 	// compute Ai
-	ax := m.MicX + TempDelta
-	ay := m.MicY + TempDelta
-	az := m.MicZ + TempDelta
+	var (
+		ax = m.MicX + TempDelta
+		ay = m.MicY + TempDelta
+		az = m.MicZ + TempDelta
+	)
 
 	// compute Scale factor
 	m.ScaleX = t.ScaleFactorX(ax)
@@ -262,9 +265,9 @@ func (t *Table) calibrate(rec Record) Measurement {
 	m.OffsetY = t.TempOffsetY(ay)
 	m.OffsetZ = t.TempOffsetZ(az)
 
-	m.AccX = apply(pick(rec.Raw, 4), m.ScaleX, m.OffsetX)
-	m.AccY = apply(pick(rec.Raw, 5), m.ScaleY, m.OffsetY)
-	m.AccZ = apply(pick(rec.Raw, 6), m.ScaleZ, m.OffsetZ)
+	m.AccX = apply(pick(m.Raw, 4), m.ScaleX, m.OffsetX)
+	m.AccY = apply(pick(m.Raw, 5), m.ScaleY, m.OffsetY)
+	m.AccZ = apply(pick(m.Raw, 6), m.ScaleZ, m.OffsetZ)
 
 	return m
 }
@@ -279,6 +282,12 @@ type Record struct {
 	When    time.Time
 	Raw     []int16
 	CanDate bool
+}
+
+func (r Record) Measurement() Measurement {
+	return Measurement{
+		Record: r,
+	}
 }
 
 func Convert(file string, duplicate bool) ([]Record, error) {
