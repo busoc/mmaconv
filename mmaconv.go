@@ -105,11 +105,10 @@ var DefaultTable = Table{
 
 type Measurement struct {
 	Record
-	UPI  string
+	UPI string
 	// When time.Time
 	// Seq  uint16
 	// Vid  uint32
-
 
 	DegX float64
 	DegY float64
