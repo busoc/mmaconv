@@ -68,9 +68,9 @@ mmastats command walks throught the list of files and directories and output the
 
 options:
 
-* [-b]:
-* [-s]:
-* [-v]:
+* [-b]: keep bad files when reading files
+* [-s]: produces only a summary of the results
+* [-v]: when given with the [s] otpion, it keeps the output for the intermediate results
 
 ```bash
 $ mmastats -b {playback,realtime}/51/*/*
