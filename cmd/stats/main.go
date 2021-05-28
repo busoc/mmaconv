@@ -19,20 +19,22 @@ func main() {
 	var (
 		verbose   = flag.Bool("v", false, "verbose")
 		summarize = flag.Bool("s", false, "produce a summary")
-		exlist    options.Exclude
+		sched     options.Schedule
+		exlud     options.Exclude
 	)
-	flag.Var(&exlist, "x", "list of directories to be exlude from stats")
+	flag.Var(&sched, "r", "dates range")
+	flag.Var(&exlud, "x", "exlude directories")
 	flag.Parse()
 
 	stats := makeStat()
 	for i, a := range flag.Args() {
 		a = splitFile(a)
-		if exlist.Has(a) {
+		if exlud.Has(a) {
 			continue
 		}
 		var (
 			prefix = fmt.Sprintf("doy %s:", a)
-			stat   = collect(flag.Arg(i))
+			stat   = collect(flag.Arg(i), sched)
 		)
 		if !*summarize || *verbose {
 			printStat(stat, prefix)
@@ -93,7 +95,7 @@ func makeStat() Stat {
 	}
 }
 
-func collect(dir string) Stat {
+func collect(dir string, sched options.Schedule) Stat {
 	s := makeStat()
 	walk.Walk(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil || i.IsDir() {
@@ -102,6 +104,9 @@ func collect(dir string) Stat {
 		rs, err := mmaconv.Convert(file, false)
 		if err != nil || len(rs) == 0 {
 			return err
+		}
+		if !sched.Keep(rs[0].When) {
+			return nil
 		}
 		count := len(rs) * mmaconv.MeasCount
 		c, ok := s.Stats[count]
