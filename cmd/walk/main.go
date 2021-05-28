@@ -6,11 +6,16 @@ import (
 	"os"
 
 	"github.com/busoc/mmaconv"
+	"github.com/busoc/mmaconv/cmd/internal/options"
 	"github.com/busoc/mmaconv/cmd/internal/walk"
 )
 
 func main() {
-	quiet := flag.Bool("q", false, "quiet")
+	var (
+		sched options.Schedule
+		quiet = flag.Bool("q", false, "quiet")
+	)
+	flag.Var(&sched, "r", "config file with range of dates")
 	flag.Parse()
 	var (
 		files   uint64
@@ -25,6 +30,9 @@ func main() {
 		rs, err := mmaconv.Convert(file, false)
 		if err != nil || len(rs) == 0 {
 			return err
+		}
+		if !sched.Keep(rs[0].When) {
+			return nil
 		}
 		total := len(rs) * mmaconv.MeasCount
 		if min < 0 || total < min {

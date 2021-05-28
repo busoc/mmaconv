@@ -11,12 +11,29 @@ type Interval struct {
 	Ends   time.Time
 }
 
+func (i Interval) IsBetween(t time.Time) bool {
+	return (t.After(i.Starts) && t.Before(i.Ends)) || t.Equal(i.Starts) || t.Equal(i.Ends)
+}
+
 type Schedule struct {
 	Ranges []Interval
 }
 
-func (s Schedule) Keep(acq time.Time) bool {
-	return true
+func (s *Schedule) Set(file string) error {
+	return nil
+}
+
+func (s *Schedule) String() string {
+	return "schedule"
+}
+
+func (s *Schedule) Keep(acq time.Time) bool {
+	for _, i := range s.Ranges {
+		if i.IsBetween(acq) {
+			return true
+		}
+	}
+	return false
 }
 
 type Exclude struct {
