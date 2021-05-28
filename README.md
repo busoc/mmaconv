@@ -21,18 +21,16 @@ options:
 
 * [-a]: write all fields from a measurement in the output
 * [-c]: use the conversion table given in a configuration file (toml format)
+* [-d]: directory where files should be written
 * [-f]: write all values from one block on the same line instead of multiple line
 * [-i]: format time with a ISO format
 * [-j]: adjust the time for each row in the output otherwise you the acquisition time found in the input files
-* [-q]: does not print anything to stdout
 * [-r]: walk recursively throught all files for the given directory
 * [-t]: use the given duration as time between two row in the output
-* [-w]: write output to given file. It creates the file if it does not exist
 * [-x]: configuration file with list of period during which activities took place
-* [-z]: compress output
 
 ```bash
-$ mmaconv -j -r -w mma.csv.gz -z tmp/mma
+$ mmaconv -j -r -d converted -z tmp/mma
 
 $ mmaconv -j -i -r tmp/mma
 ```

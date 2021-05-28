@@ -1,12 +1,10 @@
 package main
 
 import (
-	"compress/gzip"
 	"encoding/csv"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -17,37 +15,14 @@ import (
 	"github.com/busoc/mmaconv/cmd/internal/walk"
 )
 
-type File struct {
-	io.WriteCloser
-}
-
-func (f *File) Set(file string) error {
-	if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
-		return err
-	}
-	w, err := os.Create(file)
-	if err == nil {
-		f.WriteCloser = w
-	}
-	return err
-}
-
-func (f *File) String() string {
-	return "output file"
-}
-
-func (f *File) IsSet() bool {
-	return f.WriteCloser != nil
-}
-
 type Flag struct {
 	Adjust  bool
 	Iso     bool
 	Flat    bool
 	All     bool
-	Mini    bool
 	Recurse bool
 	Quiet   bool
+	Write   string
 	Time    time.Duration
 	RecPer  int
 }
@@ -64,7 +39,6 @@ const Threshold = 1512
 
 func main() {
 	var (
-		out   File
 		set   Flag
 		sched options.Schedule
 		tbl   = mmaconv.DefaultTable
@@ -73,52 +47,33 @@ func main() {
 	flag.BoolVar(&set.Iso, "i", false, "format time as RFC3339")
 	flag.BoolVar(&set.Flat, "f", false, "keep values of same record")
 	flag.BoolVar(&set.All, "a", false, "write all fields")
-	flag.BoolVar(&set.Mini, "z", false, "compress output file")
 	flag.BoolVar(&set.Recurse, "r", false, "recurse")
-	flag.BoolVar(&set.Quiet, "q", false, "quiet")
 	flag.DurationVar(&set.Time, "t", 0, "time interval between two records")
 	flag.IntVar(&set.RecPer, "b", Threshold, "max number of records per input files to compute date of each")
+	flag.StringVar(&set.Write, "d", "", "diretory where files should be written")
 	flag.Var(&tbl, "c", "use parameters table")
-	flag.Var(&out, "w", "output file")
 	flag.Var(&sched, "x", "range of dates")
 	flag.Parse()
 
-	var w io.Writer = ioutil.Discard
-	if !set.Quiet {
-		w = os.Stdout
-		if out.IsSet() {
-			defer out.Close()
-			w = out
-
-			if set.Mini {
-				z, _ := gzip.NewWriterLevel(w, gzip.BestCompression)
-				defer z.Close()
-				w = z
-			}
-		}
-	}
-	if err := process(w, tbl, flag.Arg(0), set, sched); err != nil {
+	os.RemoveAll(set.Write)
+	if err := process(tbl, flag.Arg(0), set, sched); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 }
 
-func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag, sched options.Schedule) error {
+func process(tbl mmaconv.Table, dir string, set Flag, sched options.Schedule) error {
 	var (
 		headers     = dump.SplitHeaders
 		writeRecord = dump.Split
+		freq        float64
 	)
 	if set.Flat {
 		writeRecord = dump.Flat
 		headers = nil
 	}
-
-	ws := csv.NewWriter(w)
-	if !set.All && len(headers) > 0 {
-		if err := ws.Write(headers); err != nil {
-			return err
-		}
-		ws.Flush()
+	if set.Adjust {
+		freq = tbl.SampleFrequency()
 	}
 	walk.Walk(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil {
@@ -137,10 +92,28 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag, sched options
 		if !sched.Keep(ms[0].When) {
 			return nil
 		}
-		var freq float64
-		if set.Adjust {
-			freq = tbl.SampleFrequency()
+
+		var w io.Writer = os.Stdout
+		if set.Write != "" {
+			path := filepath.Join(set.Write, ms[0].When.Format("2006/002.csv"))
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				return err
+			}
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			w = f
 		}
+		ws := csv.NewWriter(w)
+		if len(headers) > 0 {
+			ws.Write(headers)
+			ws.Flush()
+			headers = nil
+		}
+		defer ws.Flush()
+
 		df := set.DumpFlag()
 		if n := len(ms) * mmaconv.MeasCount; set.RecPer > 0 && n >= set.RecPer {
 			df.Indatable = true
@@ -148,5 +121,5 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag, sched options
 		_, err = writeRecord(ws, ms, freq, df)
 		return err
 	})
-	return ws.Error()
+	return nil
 }

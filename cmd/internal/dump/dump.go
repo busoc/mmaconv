@@ -2,7 +2,6 @@ package dump
 
 import (
 	"encoding/csv"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -64,7 +63,6 @@ func Split(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Flag) (
 	for i, m := range data {
 		curr := uint16(m.Seq)
 		if d := sequenceDelta(i, curr, prev); elapsed > 0 && d > 0 && d != mmaconv.MeasCount {
-			fmt.Println(prev, curr, d)
 			elapsed += delta * time.Duration(d/mmaconv.MeasCount)
 		}
 		for i := 0; i < mmaconv.MeasCount; i++ {
