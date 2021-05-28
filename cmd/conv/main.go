@@ -13,6 +13,7 @@ import (
 
 	"github.com/busoc/mmaconv"
 	"github.com/busoc/mmaconv/cmd/internal/dump"
+	"github.com/busoc/mmaconv/cmd/internal/options"
 	"github.com/busoc/mmaconv/cmd/internal/walk"
 )
 
@@ -50,6 +51,7 @@ type Flag struct {
 	Quiet   bool
 	Time    time.Duration
 	RecPer  int
+	options.Exclude
 }
 
 func (f Flag) DumpFlag() dump.Flag {
@@ -78,6 +80,7 @@ func main() {
 	flag.BoolVar(&set.Order, "o", false, "order traversing by acqtime available in filename")
 	flag.DurationVar(&set.Time, "t", 0, "time interval between two records")
 	flag.IntVar(&set.RecPer, "b", Threshold, "max number of records per input files to compute date of each")
+	flag.Var(&set.Exclude, "x", "directories to be excluded")
 	flag.Var(&tbl, "c", "use parameters table")
 	flag.Var(&out, "w", "output file")
 	flag.Parse()
@@ -128,7 +131,7 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 			return err
 		}
 		if i.IsDir() {
-			if !set.Recurse {
+			if !set.Recurse || set.Exclude.Has(filepath.Clean(file)) {
 				err = filepath.SkipDir
 			}
 			return err

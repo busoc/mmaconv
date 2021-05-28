@@ -72,6 +72,10 @@ func Process(m hadock.Message, opt Option) error {
 		return err
 	}
 
+	if err := os.MkdirAll(out, 0755); err != nil {
+		return err
+	}
+
 	var w io.Writer
 	if f, err := os.Create(out); err != nil {
 		return err

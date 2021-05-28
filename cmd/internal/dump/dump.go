@@ -32,9 +32,9 @@ const (
 
 type Flag struct {
 	Indatable bool
-	Iso  bool
-	All  bool
-	Time time.Duration
+	Iso       bool
+	All       bool
+	Time      time.Duration
 }
 
 func Split(ws *csv.Writer, data []mmaconv.Measurement, freq float64, set Flag) (time.Time, error) {

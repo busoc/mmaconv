@@ -15,8 +15,8 @@ func main() {
 	var (
 		files   uint64
 		records uint64
-		min int = -1
-		max int = -1
+		min     int = -1
+		max     int = -1
 	)
 	walk.Walk(flag.Arg(0), func(file string, i os.FileInfo, err error) error {
 		if err != nil || i.IsDir() {
@@ -44,7 +44,7 @@ func main() {
 	if files == 0 {
 		return
 	}
-	avg := records/files
+	avg := records / files
 	fmt.Printf("files: %d, records: %d (avg: %d, min: %d, max: %d)", files, records, avg, min, max)
 	fmt.Println()
 }

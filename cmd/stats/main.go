@@ -9,53 +9,30 @@ import (
 	"strings"
 
 	"github.com/busoc/mmaconv"
+	"github.com/busoc/mmaconv/cmd/internal/options"
 	"github.com/busoc/mmaconv/cmd/internal/walk"
 )
 
 const Pattern = "%s %4d: %8d (vmu-seq: %6d)"
-
-type Exclude struct {
-	names []string
-}
-
-func (e *Exclude) String() string {
-	return strings.Join(e.names, ",")
-}
-
-func (e *Exclude) Set(str string) error {
-	for _, s := range strings.Split(str, ",") {
-		e.names = append(e.names, strings.TrimSpace(s))
-	}
-	sort.Strings(e.names)
-	return nil
-}
-
-func (e *Exclude) Has(file string) bool {
-	for _, n := range e.names {
-		if strings.HasSuffix(file, n) {
-			return true
-		}
-	}
-	return false
-}
 
 func main() {
 	var (
 		withbad   = flag.Bool("b", false, "keep bad files")
 		verbose   = flag.Bool("v", false, "verbose")
 		summarize = flag.Bool("s", false, "produce a summary")
-		exlist Exclude
+		exlist    options.Exclude
 	)
 	flag.Var(&exlist, "x", "list of directories to be exlude from stats")
 	flag.Parse()
 
 	stats := makeStat()
 	for _, a := range flag.Args() {
-		if exlist.Has(filepath.Clean(a)) {
+		a = splitFile(a)
+		if exlist.Has(a) {
 			continue
 		}
 		var (
-			prefix = fmt.Sprintf("doy %s:", splitFile(a))
+			prefix = fmt.Sprintf("doy %s:", a)
 			stat   = collect(a, *withbad)
 		)
 		if !*summarize || *verbose {

@@ -36,7 +36,7 @@ func main() {
 		}
 
 		data, err := mmaconv.Convert(file, !*nodup)
-		if err != nil {
+		if err != nil || len(data) == 0 {
 			return nil
 		}
 		for i, rec := range data {
