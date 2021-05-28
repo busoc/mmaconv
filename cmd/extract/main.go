@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/busoc/mmaconv"
+	"github.com/busoc/mmaconv/cmd/internal/options"
 	"github.com/busoc/mmaconv/cmd/internal/walk"
 )
 
@@ -17,7 +18,9 @@ func main() {
 	var (
 		quiet = flag.Bool("q", false, "quiet")
 		nodup = flag.Bool("d", false, "remove duplicate")
+		sched options.Schedule
 	)
+	flag.Var(&sched, "r", "dates range")
 	flag.Parse()
 
 	var out io.Writer = os.Stdout
@@ -39,6 +42,9 @@ func main() {
 
 		data, err := mmaconv.Convert(file, !*nodup)
 		if err != nil || len(data) == 0 {
+			return nil
+		}
+		if !sched.Keep(data[0].When) {
 			return nil
 		}
 		for i, rec := range data {

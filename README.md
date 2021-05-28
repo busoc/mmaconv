@@ -28,6 +28,7 @@ options:
 * [-r]: walk recursively throught all files for the given directory
 * [-t]: use the given duration as time between two row in the output
 * [-w]: write output to given file. It creates the file if it does not exist
+* [-x]: configuration file with list of period during which activities took place
 * [-z]: compress output
 
 ```bash
@@ -42,6 +43,7 @@ mmaextract extracts the data from a raw binary file and output the results to st
 
 options:
 
+* [-r]: configuration file with list of period during which activities took place
 * [-d]: remove duplicate records
 
 ```bash
@@ -71,6 +73,8 @@ mmastats command walks throught the list of files and directories and output the
 
 options:
 
+* [-r]: configuration file with list of period during which activities took place
+* [-x]: list of directories that should be excluded from traversal (only last part of path can be given)
 * [-s]: produces only a summary of the results
 * [-v]: when given with the [s] otpion, it keeps the output for the intermediate results
 
@@ -118,4 +122,27 @@ mmalisten uses a single configuration (toml) file as only input argument. The co
 
 ```bash
 $ mmalisten config.toml
+```
+
+### range configuration file
+
+some of the commands accept a configuration files with a list of period during which activities where performed. The format of this configuration is given in this section
+
+The config file should be composed of at least one [[range]] section. Each of these sections should have two options:
+
+* starts: the start date of the interval
+* ends: the end date of the interval
+
+if one of this two options missing, the interval is discarded. Same if starts is after ends.
+
+sample
+
+```toml
+[[range]]
+starts = 2021-05-01
+ends   = 2021-06-11T23:59:59Z
+
+[[range]]
+starts = 2021-07-01
+ends   = 2022-01-01
 ```

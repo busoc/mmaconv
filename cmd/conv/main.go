@@ -50,7 +50,6 @@ type Flag struct {
 	Quiet   bool
 	Time    time.Duration
 	RecPer  int
-	options.Exclude
 }
 
 func (f Flag) DumpFlag() dump.Flag {
@@ -65,9 +64,10 @@ const Threshold = 1512
 
 func main() {
 	var (
-		out File
-		set Flag
-		tbl = mmaconv.DefaultTable
+		out   File
+		set   Flag
+		sched options.Schedule
+		tbl   = mmaconv.DefaultTable
 	)
 	flag.BoolVar(&set.Adjust, "j", false, "adjust time")
 	flag.BoolVar(&set.Iso, "i", false, "format time as RFC3339")
@@ -78,9 +78,9 @@ func main() {
 	flag.BoolVar(&set.Quiet, "q", false, "quiet")
 	flag.DurationVar(&set.Time, "t", 0, "time interval between two records")
 	flag.IntVar(&set.RecPer, "b", Threshold, "max number of records per input files to compute date of each")
-	flag.Var(&set.Exclude, "x", "directories to be excluded")
 	flag.Var(&tbl, "c", "use parameters table")
 	flag.Var(&out, "w", "output file")
+	flag.Var(&sched, "x", "range of dates")
 	flag.Parse()
 
 	var w io.Writer = ioutil.Discard
@@ -97,13 +97,13 @@ func main() {
 			}
 		}
 	}
-	if err := process(w, tbl, flag.Arg(0), set); err != nil {
+	if err := process(w, tbl, flag.Arg(0), set, sched); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 }
 
-func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
+func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag, sched options.Schedule) error {
 	var (
 		headers     = dump.SplitHeaders
 		writeRecord = dump.Split
@@ -125,23 +125,27 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 			return err
 		}
 		if i.IsDir() {
-			if !set.Recurse || set.Exclude.Has(filepath.Clean(file)) {
+			if !set.Recurse {
 				err = filepath.SkipDir
 			}
 			return err
 		}
 		ms, err := tbl.Calibrate(file)
-		if err == nil && len(ms) > 0 {
-			var freq float64
-			if set.Adjust {
-				freq = tbl.SampleFrequency()
-			}
-			df := set.DumpFlag()
-			if n := len(ms) * mmaconv.MeasCount; set.RecPer > 0 && n >= set.RecPer {
-				df.Indatable = true
-			}
-			_, err = writeRecord(ws, ms, freq, df)
+		if err != nil || len(ms) == 0 {
+			return nil
 		}
+		if !sched.Keep(ms[0].When) {
+			return nil
+		}
+		var freq float64
+		if set.Adjust {
+			freq = tbl.SampleFrequency()
+		}
+		df := set.DumpFlag()
+		if n := len(ms) * mmaconv.MeasCount; set.RecPer > 0 && n >= set.RecPer {
+			df.Indatable = true
+		}
+		_, err = writeRecord(ws, ms, freq, df)
 		return err
 	})
 	return ws.Error()

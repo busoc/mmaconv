@@ -17,6 +17,13 @@ func (i Interval) IsBetween(t time.Time) bool {
 	return (t.After(i.Starts) && t.Before(i.Ends)) || t.Equal(i.Starts) || t.Equal(i.Ends)
 }
 
+func (i Interval) isValid() bool {
+	if i.Starts.IsZero() || i.Ends.IsZero() {
+		return false
+	}
+	return i.Starts.Equal(i.Ends) || i.Starts.Before(i.Ends)
+}
+
 type Schedule struct {
 	Ranges []Interval `toml:"range"`
 }
@@ -34,6 +41,9 @@ func (s *Schedule) Keep(acq time.Time) bool {
 		return true
 	}
 	for _, i := range s.Ranges {
+		if !i.isValid() {
+			continue
+		}
 		if i.IsBetween(acq) {
 			return true
 		}
