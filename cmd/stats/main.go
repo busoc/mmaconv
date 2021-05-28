@@ -25,14 +25,14 @@ func main() {
 	flag.Parse()
 
 	stats := makeStat()
-	for _, a := range flag.Args() {
+	for i, a := range flag.Args() {
 		a = splitFile(a)
 		if exlist.Has(a) {
 			continue
 		}
 		var (
 			prefix = fmt.Sprintf("doy %s:", a)
-			stat   = collect(a)
+			stat   = collect(flag.Arg(i))
 		)
 		if !*summarize || *verbose {
 			printStat(stat, prefix)
@@ -47,7 +47,7 @@ func main() {
 		}
 	}
 	if *summarize {
-		if *verbose {
+		if *verbose && len(stats.Keys) > 0 {
 			fmt.Println("---")
 		}
 		printStat(stats, "summary")
