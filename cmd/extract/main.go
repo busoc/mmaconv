@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/csv"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -29,6 +30,7 @@ func main() {
 	var (
 		str  = make([]string, 2, 32)
 		prev uint16
+		msg  int
 	)
 	walk.Walk(flag.Arg(0), func(file string, i os.FileInfo, err error) error {
 		if err != nil || i.IsDir() {
@@ -54,7 +56,11 @@ func main() {
 				return err
 			}
 			str = str[:2]
+			msg++
 		}
 		return nil
 	})
+	ws.Flush()
+	fmt.Printf("messages: %d", msg)
+	fmt.Println()
 }

@@ -24,7 +24,6 @@ options:
 * [-f]: write all values from one block on the same line instead of multiple line
 * [-i]: format time with a ISO format
 * [-j]: adjust the time for each row in the output otherwise you the acquisition time found in the input files
-* [-o]: read files in a given directory by ordering them by their acquisition time
 * [-q]: does not print anything to stdout
 * [-r]: walk recursively throught all files for the given directory
 * [-t]: use the given duration as time between two row in the output
@@ -32,7 +31,7 @@ options:
 * [-z]: compress output
 
 ```bash
-$ mmaconv -j -o -r -w mma.csv.gz -z tmp/mma
+$ mmaconv -j -r -w mma.csv.gz -z tmp/mma
 
 $ mmaconv -j -i -r tmp/mma
 ```
@@ -72,12 +71,11 @@ mmastats command walks throught the list of files and directories and output the
 
 options:
 
-* [-b]: keep bad files when reading files
 * [-s]: produces only a summary of the results
 * [-v]: when given with the [s] otpion, it keeps the output for the intermediate results
 
 ```bash
-$ mmastats -b {playback,realtime}/51/*/*
+$ mmastats {playback,realtime}/51/*/*
 doy 112:  396:     24 (vmu-seq:  16404)
          1485:    100 (vmu-seq:  16217)
          1494:   7639 (vmu-seq:  16083)
@@ -113,7 +111,6 @@ mmalisten uses a single configuration (toml) file as only input argument. The co
 * addr: multicast address where mmalisten has to subscribe
 * in-dir: directory of the hadock archive where mmalisten can find the file given in the reference of the PP
 * out-dir: directory where the converted files should be stored
-* keep-bad: discard or keep files marked as bad by hadock
 * adjust-time: adjust the time for each row in the output otherwise you the acquisition time found in the input files
 * iso-format: format time as ISO format
 * compress: compress output file

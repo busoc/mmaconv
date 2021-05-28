@@ -23,7 +23,6 @@ type Option struct {
 	Addr       string
 	In         string `toml:"in-dir"`
 	Out        string `toml:"out-dir"`
-	KeepBad    bool   `toml:"keep-bad"`
 	AdjustTime bool   `toml:"adjust-time"`
 	IsoTime    bool   `toml:"iso-format"`
 	Compress   bool
@@ -103,7 +102,7 @@ func Process(m hadock.Message, opt Option) error {
 
 }
 
-func Listen(addr string, withbad bool) (<-chan hadock.Message, error) {
+func Listen(addr string) (<-chan hadock.Message, error) {
 	a, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return nil, err
@@ -121,12 +120,9 @@ func Listen(addr string, withbad bool) (<-chan hadock.Message, error) {
 		for {
 			m, err := hadock.DecodeMessage(conn)
 			if err != nil {
-				return
-			}
-			if ext := filepath.Ext(m.Reference); !withbad && ext == ".bad" {
 				continue
 			}
-			if m.Origin != Origin {
+			if ext := filepath.Ext(m.Reference); ext == ".bad" || m.Origin != Origin {
 				continue
 			}
 			queue <- m

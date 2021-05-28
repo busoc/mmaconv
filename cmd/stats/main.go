@@ -17,7 +17,6 @@ const Pattern = "%s %4d: %8d (vmu-seq: %6d)"
 
 func main() {
 	var (
-		withbad   = flag.Bool("b", false, "keep bad files")
 		verbose   = flag.Bool("v", false, "verbose")
 		summarize = flag.Bool("s", false, "produce a summary")
 		exlist    options.Exclude
@@ -33,7 +32,7 @@ func main() {
 		}
 		var (
 			prefix = fmt.Sprintf("doy %s:", a)
-			stat   = collect(a, *withbad)
+			stat   = collect(a)
 		)
 		if !*summarize || *verbose {
 			printStat(stat, prefix)
@@ -94,14 +93,11 @@ func makeStat() Stat {
 	}
 }
 
-func collect(dir string, bad bool) Stat {
+func collect(dir string) Stat {
 	s := makeStat()
 	walk.Walk(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil || i.IsDir() {
 			return err
-		}
-		if ext := filepath.Ext(file); !bad && ext == ".bad" {
-			return nil
 		}
 		rs, err := mmaconv.Convert(file, false)
 		if err != nil || len(rs) == 0 {

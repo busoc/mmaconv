@@ -43,6 +43,9 @@ func walk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 				return err
 			}
 		}
+		if ext := filepath.Ext(file); ext == ".bad" {
+			continue
+		}
 		err = walk(file, fi, walkFn)
 		if err != nil {
 			if !fi.IsDir() || err != filepath.SkipDir {

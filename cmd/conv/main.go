@@ -47,7 +47,6 @@ type Flag struct {
 	All     bool
 	Mini    bool
 	Recurse bool
-	Order   bool
 	Quiet   bool
 	Time    time.Duration
 	RecPer  int
@@ -77,7 +76,6 @@ func main() {
 	flag.BoolVar(&set.Mini, "z", false, "compress output file")
 	flag.BoolVar(&set.Recurse, "r", false, "recurse")
 	flag.BoolVar(&set.Quiet, "q", false, "quiet")
-	flag.BoolVar(&set.Order, "o", false, "order traversing by acqtime available in filename")
 	flag.DurationVar(&set.Time, "t", 0, "time interval between two records")
 	flag.IntVar(&set.RecPer, "b", Threshold, "max number of records per input files to compute date of each")
 	flag.Var(&set.Exclude, "x", "directories to be excluded")
@@ -122,11 +120,7 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 		}
 		ws.Flush()
 	}
-	var walkfn = filepath.Walk
-	if set.Order {
-		walkfn = walk.Walk
-	}
-	walkfn(dir, func(file string, i os.FileInfo, err error) error {
+	walk.Walk(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -137,10 +131,7 @@ func process(w io.Writer, tbl mmaconv.Table, dir string, set Flag) error {
 			return err
 		}
 		ms, err := tbl.Calibrate(file)
-		if len(ms) == 0 {
-			return err
-		}
-		if err == nil {
+		if err == nil && len(ms) > 0 {
 			var freq float64
 			if set.Adjust {
 				freq = tbl.SampleFrequency()

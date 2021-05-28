@@ -3,7 +3,21 @@ package options
 import (
 	"sort"
 	"strings"
+	"time"
 )
+
+type Interval struct {
+	Starts time.Time
+	Ends   time.Time
+}
+
+type Schedule struct {
+	Ranges []Interval
+}
+
+func (s Schedule) Keep(acq time.Time) bool {
+	return true
+}
 
 type Exclude struct {
 	names []string
