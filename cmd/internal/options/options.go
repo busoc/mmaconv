@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/midbel/toml"
 )
 
 type Interval struct {
@@ -16,11 +18,11 @@ func (i Interval) IsBetween(t time.Time) bool {
 }
 
 type Schedule struct {
-	Ranges []Interval
+	Ranges []Interval `toml:"range"`
 }
 
 func (s *Schedule) Set(file string) error {
-	return nil
+	return toml.DecodeFile(file, s)
 }
 
 func (s *Schedule) String() string {
@@ -28,6 +30,9 @@ func (s *Schedule) String() string {
 }
 
 func (s *Schedule) Keep(acq time.Time) bool {
+	if len(s.Ranges) == 0 {
+		return true
+	}
 	for _, i := range s.Ranges {
 		if i.IsBetween(acq) {
 			return true
