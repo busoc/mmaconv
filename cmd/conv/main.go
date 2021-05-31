@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/csv"
 	"flag"
 	"fmt"
@@ -15,6 +16,114 @@ import (
 	"github.com/busoc/mmaconv/cmd/internal/walk"
 )
 
+type encoder struct {
+	writer  io.WriteCloser
+	encoder *csv.Writer
+}
+
+func (e *encoder) Close() error {
+	e.encoder.Flush()
+	return e.writer.Close()
+}
+
+type Cache struct {
+	files   map[time.Time]*encoder
+	headers []string
+	dir     string
+	mini    bool
+}
+
+func New(dir string, minify bool, headers []string) *Cache {
+	os.RemoveAll(dir)
+	return &Cache{
+		files:   make(map[time.Time]*encoder),
+		headers: headers,
+		dir:     dir,
+		mini:    minify,
+	}
+}
+
+func (c *Cache) Close() error {
+	for _, e := range c.files {
+		e.Close()
+	}
+	return nil
+}
+
+func (c *Cache) Get(acq time.Time) (*csv.Writer, error) {
+	acq = acq.Truncate(time.Hour * 24)
+	e, ok := c.files[acq]
+	if ok {
+		return e.encoder, nil
+	}
+
+	wc, err := Create(filepath.Join(c.dir, acq.Format("2006/002")), c.mini)
+	if err != nil {
+		return nil, err
+	}
+
+	ew := csv.NewWriter(wc)
+	if len(c.headers) > 0 {
+		ew.Write(c.headers)
+		ew.Flush()
+		if err := ew.Error(); err != nil {
+			return nil, err
+		}
+	}
+	c.files[acq] = &encoder{
+		writer:  wc,
+		encoder: ew,
+	}
+	return ew, nil
+}
+
+func glob(file string) int {
+	files, _ := filepath.Glob(file)
+	return len(files) + 1
+}
+
+type Writer struct {
+	writer io.WriteCloser
+	inner  io.WriteCloser
+}
+
+func Create(file string, mini bool) (io.WriteCloser, error) {
+	err := os.MkdirAll(filepath.Dir(file), 0755)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		ws  Writer
+		ext = ".csv"
+	)
+	if mini {
+		ext += ".gz"
+	}
+	count := glob(file + "*" + ext)
+	file = fmt.Sprintf("%s.%d%s", file, count, ext)
+	if ws.inner, err = os.Create(file); err != nil {
+		return nil, err
+	}
+	if mini {
+		z, _ := gzip.NewWriterLevel(ws.inner, gzip.BestCompression)
+		ws.writer = ws.inner
+		ws.inner = z
+	}
+	return &ws, nil
+}
+
+func (w *Writer) Write(b []byte) (int, error) {
+	return w.inner.Write(b)
+}
+
+func (w *Writer) Close() error {
+	w.inner.Close()
+	if w.writer != nil {
+		return w.writer.Close()
+	}
+	return nil
+}
+
 type Flag struct {
 	Adjust  bool
 	Iso     bool
@@ -22,7 +131,8 @@ type Flag struct {
 	All     bool
 	Recurse bool
 	Quiet   bool
-	Write   string
+	Mini    bool
+	Dir     string
 	Time    time.Duration
 	RecPer  int
 }
@@ -35,7 +145,7 @@ func (f Flag) DumpFlag() dump.Flag {
 	}
 }
 
-const Threshold = 1512
+const Threshold = 1521
 
 func main() {
 	var (
@@ -47,15 +157,15 @@ func main() {
 	flag.BoolVar(&set.Iso, "i", false, "format time as RFC3339")
 	flag.BoolVar(&set.Flat, "f", false, "keep values of same record")
 	flag.BoolVar(&set.All, "a", false, "write all fields")
+	flag.BoolVar(&set.Mini, "z", false, "compress output file")
 	flag.BoolVar(&set.Recurse, "r", false, "recurse")
 	flag.DurationVar(&set.Time, "t", 0, "time interval between two records")
 	flag.IntVar(&set.RecPer, "b", Threshold, "max number of records per input files to compute date of each")
-	flag.StringVar(&set.Write, "d", "", "diretory where files should be written")
-	flag.Var(&tbl, "c", "use parameters table")
-	flag.Var(&sched, "x", "range of dates")
+	flag.StringVar(&set.Dir, "d", "", "diretory where files should be written")
+	flag.Var(&tbl, "c", "parameters table to use")
+	flag.Var(&sched, "x", "range of dates in config files when activities took place")
 	flag.Parse()
 
-	os.RemoveAll(set.Write)
 	if err := process(tbl, flag.Arg(0), set, sched); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -75,6 +185,9 @@ func process(tbl mmaconv.Table, dir string, set Flag, sched options.Schedule) er
 	if set.Adjust {
 		freq = tbl.SampleFrequency()
 	}
+	cache := New(set.Dir, set.Mini, headers)
+	defer cache.Close()
+
 	walk.Walk(dir, func(file string, i os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -86,31 +199,13 @@ func process(tbl mmaconv.Table, dir string, set Flag, sched options.Schedule) er
 			return err
 		}
 		ms, err := tbl.Calibrate(file)
-		if err != nil || len(ms) == 0 {
-			return nil
-		}
-		if !sched.Keep(ms[0].When) {
+		if err != nil || len(ms) == 0 || !sched.Keep(ms[0].When) {
 			return nil
 		}
 
-		var w io.Writer = os.Stdout
-		if set.Write != "" {
-			path := filepath.Join(set.Write, ms[0].When.Format("2006/002.csv"))
-			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-				return err
-			}
-			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			w = f
-		}
-		ws := csv.NewWriter(w)
-		if len(headers) > 0 {
-			ws.Write(headers)
-			ws.Flush()
-			headers = nil
+		ws, err := cache.Get(ms[0].When)
+		if err != nil {
+			return err
 		}
 		defer ws.Flush()
 
