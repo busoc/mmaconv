@@ -34,7 +34,6 @@ type Cache struct {
 }
 
 func New(dir string, minify bool, headers []string) *Cache {
-	os.RemoveAll(dir)
 	return &Cache{
 		files:   make(map[time.Time]*encoder),
 		headers: headers,
