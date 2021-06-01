@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/busoc/mmaconv"
@@ -49,14 +50,18 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) Get(acq time.Time) (*csv.Writer, error) {
+func (c *Cache) Get(acq time.Time, doy string) (*csv.Writer, error) {
 	acq = acq.Truncate(time.Hour * 24)
 	e, ok := c.files[acq]
 	if ok {
 		return e.encoder, nil
 	}
 
-	wc, err := Create(filepath.Join(c.dir, acq.Format("2006/002")), c.mini)
+	file := acq.Format("2006/002")
+	if doy != "" {
+		file = fmt.Sprintf("%s.%s", file, doy)
+	}
+	wc, err := Create(filepath.Join(c.dir, file), c.mini, doy=="")
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +91,7 @@ type Writer struct {
 	inner  io.WriteCloser
 }
 
-func Create(file string, mini bool) (io.WriteCloser, error) {
+func Create(file string, mini, guess bool) (io.WriteCloser, error) {
 	err := os.MkdirAll(filepath.Dir(file), 0755)
 	if err != nil {
 		return nil, err
@@ -98,8 +103,10 @@ func Create(file string, mini bool) (io.WriteCloser, error) {
 	if mini {
 		ext += ".gz"
 	}
-	count := glob(file + "*" + ext)
-	file = fmt.Sprintf("%s.%d%s", file, count, ext)
+	if guess {
+		count := glob(file + "*" + ext)
+		file = fmt.Sprintf("%s.%d%s", file, count, ext)
+	}
 	if ws.inner, err = os.Create(file); err != nil {
 		return nil, err
 	}
@@ -202,7 +209,7 @@ func process(tbl mmaconv.Table, dir string, set Flag, sched options.Schedule) er
 			return nil
 		}
 
-		ws, err := cache.Get(ms[0].When)
+		ws, err := cache.Get(ms[0].When, doy(file))
 		if err != nil {
 			return err
 		}
@@ -216,4 +223,15 @@ func process(tbl mmaconv.Table, dir string, set Flag, sched options.Schedule) er
 		return err
 	})
 	return nil
+}
+
+func doy(file string) string {
+	var (
+		parts = strings.Split(file, "/")
+		size  = len(parts) - 4
+	)
+	if size < 0 {
+		return ""
+	}
+	return parts[size]
 }
