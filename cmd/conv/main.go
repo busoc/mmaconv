@@ -106,6 +106,8 @@ func Create(file string, mini, guess bool) (io.WriteCloser, error) {
 	if guess {
 		count := glob(file + "*" + ext)
 		file = fmt.Sprintf("%s.%d%s", file, count, ext)
+	} else {
+		file += ext
 	}
 	if ws.inner, err = os.Create(file); err != nil {
 		return nil, err
