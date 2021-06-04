@@ -17,9 +17,12 @@ the output is a csv file with the following columns:
 * Tx, Ty, Tz (degree celsius)
 * Ax, Ay, Az (micro gravity)
 
+files generated will be written when the [-d] option is given a sub directory of the year of the acquisition and the filename will have the following structure: <doy acq>.<doy gen>.<ext>
+
 options:
 
 * [-a]: write all fields from a measurement in the output
+* [-b]: number of measurements accepted by input files in order to set a timestamp (default 1512)
 * [-c]: use the conversion table given in a configuration file (toml format)
 * [-d]: directory where files should be written
 * [-f]: write all values from one block on the same line instead of multiple line
@@ -27,7 +30,8 @@ options:
 * [-j]: adjust the time for each row in the output otherwise you the acquisition time found in the input files
 * [-r]: walk recursively throught all files for the given directory
 * [-t]: use the given duration as time between two row in the output
-* [-x]: configuration file with list of period during which activities took place
+* [-x]: configuration file with list of period during which activities took place (see below for more info)
+* [-z]: compress output file
 
 ```bash
 $ mmaconv -j -r -d converted -z tmp/mma
@@ -41,7 +45,8 @@ mmaextract extracts the data from a raw binary file and output the results to st
 
 options:
 
-* [-r]: configuration file with list of period during which activities took place
+* [-r]: configuration file with list of period during which activities took place (see below for more info)
+* [-q]: suppress output
 * [-d]: remove duplicate records
 
 ```bash
@@ -71,7 +76,7 @@ mmastats command walks throught the list of files and directories and output the
 
 options:
 
-* [-r]: configuration file with list of period during which activities took place
+* [-r]: configuration file with list of period during which activities took place (see below for more info)
 * [-x]: list of directories that should be excluded from traversal (only last part of path can be given)
 * [-s]: produces only a summary of the results
 * [-v]: when given with the [s] otpion, it keeps the output for the intermediate results
@@ -124,7 +129,9 @@ $ mmalisten config.toml
 
 ### range configuration file
 
-some of the commands accept a configuration files with a list of period during which activities where performed. The format of this configuration is given in this section
+some of the commands accept a configuration files with a list of period during which activities where performed. The format of this configuration is given in this section.
+
+Important to repeat, this configuration should hold range when activities took place.
 
 The config file should be composed of at least one [[range]] section. Each of these sections should have two options:
 
