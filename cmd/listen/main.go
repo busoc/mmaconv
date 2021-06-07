@@ -47,7 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	queue, err := Listen(opt.Addr, opt.KeepBad)
+	queue, err := Listen(opt.Addr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(3)
